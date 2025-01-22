@@ -1,0 +1,30 @@
+unstable_features = true
+
+# .editorconfig
+max_width = 100
+newline_style = "Unix"
+
+# Accessibility
+hard_tabs = true
+color = "Always"
+brace_style = "PreferSameLine"
+match_arm_leading_pipes = "Always"
+
+# Imports
+group_imports = "StdExternalCrate"
+#imports_granularity = "One"
+
+# Macros
+format_macro_bodies = true
+format_macro_matchers = true
+inline_attribute_width = 100
+overflow_delimited_expr = true
+
+# Documentation
+normalize_doc_attributes = true
+format_code_in_doc_comments = true
+
+# Other
+reorder_impl_items = true
+fn_params_layout = "Compressed"
+force_multiline_blocks = true
