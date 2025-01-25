@@ -1,0 +1,25 @@
+[unstable]
+codegen-backend = true
+
+[profile.dev]
+opt-level = 3
+
+[profile.release]
+lto = true
+strip = true
+codegen-units = 1
+panic = "abort"
+opt-level = "z"
+
+[profile.release.package."*"]
+strip = true
+opt-level = 3
+
+[target.x86_64-pc-windows-msvc]
+#linker = "rust-lld.exe"
+rustflags = [
+  "-Zunstable-options",
+  "-Zshare-generics=y",
+  "-Zthreads=16",
+  "-Ctarget-cpu=native",
+]

@@ -4,7 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-mimalloc = "0.1.43"
 winit = { version = "0.30.8", default-features = false, features = ["rwh_06"] }
 
 [dependencies.windows]
