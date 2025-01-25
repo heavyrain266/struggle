@@ -7,37 +7,7 @@ use winit::{
 	window::{Window, WindowAttributes, WindowId},
 };
 
-use crate::gi::adapter::Adapter;
-
-struct Timer {
-	start_time: std::time::Instant,
-	last_frame_time: std::time::Instant,
-	delta_time: std::time::Duration,
-}
-
-impl Timer {
-	fn new() -> Self {
-		let now: std::time::Instant = std::time::Instant::now();
-
-		Self {
-			start_time: now,
-			last_frame_time: now,
-			delta_time: std::time::Duration::ZERO,
-		}
-	}
-
-	fn update(&mut self) {
-		let now = std::time::Instant::now();
-
-		self.delta_time = now - self.last_frame_time;
-		self.last_frame_time = now;
-	}
-
-	#[allow(unused)]
-	fn elapsed(&self) -> f32 {
-		(std::time::Instant::now() - self.start_time).as_secs_f32()
-	}
-}
+use crate::{gi::adapter::Adapter, timer::Timer};
 
 pub(super) struct TestD3D11 {
 	time: f32,
@@ -119,7 +89,7 @@ impl ApplicationHandler for TestD3D11 {
 			| WindowEvent::RedrawRequested => {
 				if let Some(window) = &self.window {
 					self.timer.update();
-					self.time += self.timer.delta_time.as_secs_f32();
+					self.time += self.timer.delta.as_secs_f32();
 
 					let (r, g, b, a) = crate::gi::misc::hsla_to_rgba(
 						self.time * std::f32::consts::PI * 40.0,

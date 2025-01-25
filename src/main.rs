@@ -5,6 +5,7 @@
 
 mod app;
 mod gi;
+mod timer;
 
 //#[doc(hidden)]
 //#[global_allocator]
