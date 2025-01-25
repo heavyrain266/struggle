@@ -1,3 +1,7 @@
+//! Application
+//!
+//! A module used to handle input and windowing
+
 use winit::{
 	application::ApplicationHandler,
 	event::WindowEvent,
@@ -7,22 +11,23 @@ use winit::{
 	window::{Window, WindowAttributes, WindowId},
 };
 
-use crate::{gi::adapter::Adapter, timer::Timer};
+use crate::gi::context::Context;
 
+/// DirectX 11 Test
+///
+/// Encapsulates the components for testing D3D11 rendering
 pub(super) struct TestD3D11 {
-	time: f32,
-	timer: Timer,
+	/// A graphics adapter used for rendering.
+	context: Context,
+	/// An optional window for rendering.
 	window: Option<Window>,
-	adapter: Adapter,
 }
 
 impl Default for TestD3D11 {
 	fn default() -> Self {
 		Self {
-			time: 0.0,
-			timer: Timer::new(),
+			context: Context::default(),
 			window: None,
-			adapter: Adapter::default(),
 		}
 	}
 }
@@ -56,7 +61,7 @@ impl ApplicationHandler for TestD3D11 {
 			unreachable!()
 		};
 
-		self.adapter
+		self.context
 			.set_swap_chain(
 				window.inner_size().width,
 				window.inner_size().height,
@@ -78,29 +83,17 @@ impl ApplicationHandler for TestD3D11 {
 						size.to_logical::<u32>(window.scale_factor());
 
 					if lsize.width != 0 && lsize.height != 0 {
-						self.adapter
+						self.context
 							.resize_buffers(lsize.width, lsize.height)
 							.expect("failed to resize swap chain buffers");
-
-						window.request_redraw();
 					}
+					
+					window.request_redraw();
 				}
 			}
 			| WindowEvent::RedrawRequested => {
 				if let Some(window) = &self.window {
-					self.timer.update();
-					self.time += self.timer.delta.as_secs_f32();
-
-					let (r, g, b, a) = crate::gi::misc::hsla_to_rgba(
-						self.time * std::f32::consts::PI * 40.0,
-						0.4,
-						0.8,
-						1.0,
-					);
-
-					self.adapter
-						.present(&[r, g, b, a])
-						.expect("failed to present frames");
+					self.context.present().expect("failed to present frames");
 
 					window.request_redraw();
 				}

@@ -1,3 +1,7 @@
+//! Buffers
+//!
+//! A module used to create and manage buffers
+
 //use super::d3d11;
 //
 //#[repr(C)]

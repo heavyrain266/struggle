@@ -1,17 +1,26 @@
 //! Adapter
 //!
-//! A module used to select device, setup swap chain and present frames to the window
+//! A module used to select device, setup swap chain and present frames to the window.
 
 use super::{BOOL, HMODULE, HWND, Interface, d3d, d3d11, dxgi, misc};
+use crate::timer::Timer;
 
+/// AdapterKind
+///
+/// Allows for specifying whether to prioritize power efficiency,
+/// performance, or use the system's default preference.
 #[allow(unused)]
 pub(super) enum AdapterKind {
+	/// The system will choose the adapter.
 	Unspecified,
+	/// Prefer the adapter with the lowest power consumption.
 	MinimumPower,
+	/// Prefer the adapter with the highest performance.
 	HighPerformance,
 }
 
 impl AdapterKind {
+	/// Maps the [`AdapterKind`] to the corresponding [`dxgi::DXGI_GPU_PREFERENCE`] value.
 	pub(super) fn map_to_dxgi(&self) -> dxgi::DXGI_GPU_PREFERENCE {
 		match self {
 			| Self::Unspecified => dxgi::DXGI_GPU_PREFERENCE_UNSPECIFIED,
@@ -21,22 +30,36 @@ impl AdapterKind {
 	}
 }
 
-pub(crate) struct Adapter {
+/// Adapter
+///
+/// A wrapper for device, context and resources.
+pub(crate) struct Context {
+	/// D3D11 device
 	device: d3d11::ID3D11Device5,
-	context: d3d11::ID3D11DeviceContext4,
+	/// D3D11 device context
+	cmd_list: d3d11::ID3D11DeviceContext4,
+	/// RenderTargetView derived from back buffer
 	back_buffer_rtv: Option<d3d11::ID3D11RenderTargetView>,
 
+	/// Time value for animations etc
+	time: f32,
+	/// Timer tracks the time elapsed between frames
+	timer: Timer,
+
+	/// DXGI factory
 	factory: dxgi::IDXGIFactory7,
+	/// DXGI swap chain
 	swap_chain: Option<dxgi::IDXGISwapChain3>,
 }
 
-impl core::default::Default for Adapter {
+impl core::default::Default for Context {
 	fn default() -> Self {
 		return Self::new();
 	}
 }
 
-impl Adapter {
+impl Context {
+	/// Constructor
 	pub(crate) fn new() -> Self {
 		let factory: dxgi::IDXGIFactory7 = unsafe {
 			dxgi::CreateDXGIFactory2(dxgi::DXGI_CREATE_FACTORY_DEBUG)
@@ -81,8 +104,10 @@ impl Adapter {
 		Self {
 			factory,
 			device,
-			context,
+			cmd_list: context,
 			back_buffer_rtv: None,
+			time: 0.0,
+			timer: Timer::new(),
 			swap_chain: None,
 		}
 	}
@@ -118,8 +143,8 @@ impl Adapter {
 
 		unsafe {
 			self.factory
-				.MakeWindowAssociation(*hwnd, dxgi::DXGI_MWA_NO_ALT_ENTER)
-		}?;
+				.MakeWindowAssociation(*hwnd, dxgi::DXGI_MWA_NO_ALT_ENTER)?;
+		}
 
 		self.back_buffer_rtv = Some(misc::back_buffer_rtv(&self.device, &swap_chain)?);
 		self.swap_chain = Some(swap_chain.cast()?);
@@ -128,35 +153,30 @@ impl Adapter {
 	}
 
 	pub(crate) fn resize_buffers(&mut self, x: u32, y: u32) -> Result<(), windows::core::Error> {
-		unsafe { self.context.Flush() };
 		self.back_buffer_rtv.take();
+		unsafe { self.cmd_list.Flush() };
 
 		match &mut self.swap_chain {
-			| Some(swap_chain) => {
-				unsafe {
-					swap_chain.ResizeBuffers(
-						0,
-						x,
-						y,
-						dxgi::Common::DXGI_FORMAT_UNKNOWN,
-						dxgi::DXGI_SWAP_CHAIN_FLAG(0),
-					)
-				}?;
-
-				unsafe {
-					self.context.RSSetViewports(Some(&[d3d11::D3D11_VIEWPORT {
-						TopLeftX: 0.0,
-						TopLeftY: 0.0,
-						Width: x as f32,
-						Height: y as f32,
-						MinDepth: 0.0,
-						MaxDepth: 1.0,
-					}]))
-				};
+			| Some(swap_chain) => unsafe {
+				swap_chain.ResizeBuffers(
+					0,
+					x,
+					y,
+					dxgi::Common::DXGI_FORMAT_UNKNOWN,
+					dxgi::DXGI_SWAP_CHAIN_FLAG(0),
+				)?;
 
 				self.back_buffer_rtv
 					.replace(misc::back_buffer_rtv(&self.device, swap_chain)?);
-			}
+				self.cmd_list.RSSetViewports(Some(&[d3d11::D3D11_VIEWPORT {
+					TopLeftX: 0.0,
+					TopLeftY: 0.0,
+					Width: x as f32,
+					Height: y as f32,
+					MinDepth: 0.0,
+					MaxDepth: 1.0,
+				}]))
+			},
 			| None => {
 				return Err(windows::core::Error::new(
 					windows::core::HRESULT(-1),
@@ -168,30 +188,38 @@ impl Adapter {
 		return Ok(());
 	}
 
-	pub(crate) fn present(&mut self, rgba: &[f32; 4]) -> Result<(), windows::core::Error> {
-		if let Some(swap_chain) = &self.swap_chain {
-			let sw_desc: dxgi::DXGI_SWAP_CHAIN_DESC1 = unsafe { swap_chain.GetDesc1() }?;
+	pub(crate) fn present(&mut self) -> Result<(), windows::core::Error> {
+		self.timer.update();
+		self.time += self.timer.delta.as_secs_f32();
 
-			unsafe {
-				self.context.RSSetViewports(Some(&[d3d11::D3D11_VIEWPORT {
+		let (r, g, b, a) =
+			crate::gi::misc::hsla_to_rgba(self.time * std::f32::consts::PI * 40.0, 0.4, 0.8, 1.0);
+
+		match &self.swap_chain {
+			| Some(swap_chain) => unsafe {
+				self.cmd_list.RSSetViewports(Some(&[d3d11::D3D11_VIEWPORT {
 					TopLeftX: 0.0,
 					TopLeftY: 0.0,
-					Width: sw_desc.Width as f32,
-					Height: sw_desc.Height as f32,
+					Width: swap_chain.GetDesc1()?.Width as f32,
+					Height: swap_chain.GetDesc1()?.Height as f32,
 					MinDepth: 0.0,
 					MaxDepth: 1.0,
-				}]))
-			};
+				}]));
+			},
+			| None => {
+				return Err(windows::core::Error::new(
+					windows::core::HRESULT(-1),
+					"swap chain wasn't created",
+				));
+			}
 		}
 
 		match &self.back_buffer_rtv {
-			| Some(rtv) => {
-				unsafe {
-					self.context
-						.OMSetRenderTargets(Some(&[Some(rtv.clone())]), None)
-				};
-				unsafe { self.context.ClearRenderTargetView(rtv, rgba) };
-			}
+			| Some(rtv) => unsafe {
+				self.cmd_list.ClearRenderTargetView(rtv, &[r, g, b, a]);
+				self.cmd_list
+					.OMSetRenderTargets(Some(&[Some(rtv.clone())]), None);
+			},
 			| None => {
 				return Err(windows::core::Error::new(
 					windows::core::HRESULT(-1),
@@ -201,18 +229,16 @@ impl Adapter {
 		}
 
 		match &self.swap_chain {
-			| Some(swap_chain) => {
-				unsafe {
-					swap_chain
-						.Present1(
-							1,
-							dxgi::DXGI_PRESENT(0),
-							&dxgi::DXGI_PRESENT_PARAMETERS::default(),
-						)
-						.ok()
-						.expect("failed to present swapchain content")
-				};
-			}
+			| Some(swap_chain) => unsafe {
+				swap_chain
+					.Present1(
+						1,
+						dxgi::DXGI_PRESENT(0),
+						&dxgi::DXGI_PRESENT_PARAMETERS::default(),
+					)
+					.ok()
+					.expect("failed to present swapchain content");
+			},
 			| None => {
 				return Err(windows::core::Error::new(
 					windows::core::HRESULT(-1),

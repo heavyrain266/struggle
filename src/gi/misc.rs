@@ -76,7 +76,7 @@ pub(super) fn back_buffer_rtv(
 }
 
 pub(super) fn select_adapter(
-	factory: &dxgi::IDXGIFactory7, prefer: super::adapter::AdapterKind,
+	factory: &dxgi::IDXGIFactory7, prefer: super::context::AdapterKind,
 ) -> Result<dxgi::IDXGIAdapter4, windows::core::Error> {
 	for i in 0.. {
 		let adapter: dxgi::IDXGIAdapter4 =

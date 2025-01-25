@@ -4,7 +4,7 @@
 
 mod buffers;
 
-pub(crate) mod adapter;
+pub(crate) mod context;
 pub(crate) mod misc;
 
 use windows::{
