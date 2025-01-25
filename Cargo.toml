@@ -1,10 +1,11 @@
 [package]
 name = "test_dx11"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 [dependencies]
 winit = { version = "0.30.8", default-features = false, features = ["rwh_06"] }
+bytemuck = { version = "1.21.0", features = ["derive", "nightly_stdsimd"] }
 
 [dependencies.windows]
 version = "0.59.0"

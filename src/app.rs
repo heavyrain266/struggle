@@ -86,15 +86,13 @@ impl ApplicationHandler for TestD3D11 {
 			unreachable!()
 		};
 
-		unsafe {
-			self.adapter
-				.set_swap_chain(
-					window.inner_size().width,
-					window.inner_size().height,
-					&windows::Win32::Foundation::HWND(handle.hwnd.get() as *mut std::ffi::c_void),
-				)
-				.expect("failed to create swapchain");
-		}
+		self.adapter
+			.set_swap_chain(
+				window.inner_size().width,
+				window.inner_size().height,
+				&windows::Win32::Foundation::HWND(handle.hwnd.get() as *mut std::ffi::c_void),
+			)
+			.expect("failed to create swapchain");
 
 		self.window = Some(window);
 	}
@@ -110,11 +108,9 @@ impl ApplicationHandler for TestD3D11 {
 						size.to_logical::<u32>(window.scale_factor());
 
 					if lsize.width != 0 && lsize.height != 0 {
-						unsafe {
-							self.adapter
-								.resize_buffers(lsize.width, lsize.height)
-								.expect("failed to resize swap chain buffers")
-						};
+						self.adapter
+							.resize_buffers(lsize.width, lsize.height)
+							.expect("failed to resize swap chain buffers");
 
 						window.request_redraw();
 					}
@@ -132,11 +128,9 @@ impl ApplicationHandler for TestD3D11 {
 						1.0,
 					);
 
-					unsafe {
-						self.adapter
-							.present(&[r, g, b, a])
-							.expect("failed to present frames")
-					};
+					self.adapter
+						.present(&[r, g, b, a])
+						.expect("failed to present frames");
 
 					window.request_redraw();
 				}

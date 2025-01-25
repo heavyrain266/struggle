@@ -1,8 +1,24 @@
+[target.'cfg(all())']
+rustflags = [
+  # nightly
+  "-Zunstable-options",
+  "-Zshare-generics=y",
+  "-Zthreads=16",
+  "-Ctarget-cpu=native",
+
+  # stable
+  "-Wclippy::all",
+  "-Ddeprecated",
+  "-Dredundant-imports",
+  "-Ffuture-incompatible",
+  "-Fmissing-unsafe-on-extern",
+  "-Fdeprecated-in-future",
+  "-Fdeprecated-safe-2024",
+  "-Frust-2024-compatibility",
+]
+
 [unstable]
 codegen-backend = true
-
-[profile.dev]
-opt-level = 3
 
 [profile.release]
 lto = true
@@ -14,12 +30,3 @@ opt-level = "z"
 [profile.release.package."*"]
 strip = true
 opt-level = 3
-
-[target.x86_64-pc-windows-msvc]
-#linker = "rust-lld.exe"
-rustflags = [
-  "-Zunstable-options",
-  "-Zshare-generics=y",
-  "-Zthreads=16",
-  "-Ctarget-cpu=native",
-]

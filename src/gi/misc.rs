@@ -4,90 +4,97 @@
 
 #![allow(unused)]
 
-use super::{d3d, d3d11, dxgi, fxc, s, HSTRING};
+use super::{HSTRING, d3d, d3d11, dxgi, fxc, s};
 
 pub(super) enum ShaderKind {
 	Pixel = 0,
 	Vertex = 1,
 }
 
-pub(super) unsafe fn compile(
+pub(super) fn compile(
 	file: &HSTRING, kind: ShaderKind,
 ) -> Result<d3d::ID3DBlob, windows::core::Error> {
-	let flags: u32 = if cfg!(debug_assertions) {
-		fxc::D3DCOMPILE_DEBUG | fxc::D3DCOMPILE_SKIP_OPTIMIZATION
-	} else {
-		0
-	};
+	unsafe {
+		let flags: u32 = if cfg!(debug_assertions) {
+			fxc::D3DCOMPILE_DEBUG | fxc::D3DCOMPILE_SKIP_OPTIMIZATION
+		} else {
+			0
+		};
 
-	let mut pixel: Option<d3d::ID3DBlob> = None;
-	let mut vertex: Option<d3d::ID3DBlob> = None;
+		let mut pixel: Option<d3d::ID3DBlob> = None;
+		let mut vertex: Option<d3d::ID3DBlob> = None;
 
-	match kind {
-		| ShaderKind::Pixel => {
-			let pixel: d3d::ID3DBlob = fxc::D3DCompileFromFile(
-				file,
-				None,
-				None,
-				s!("ps_main"),
-				s!("ps_5_0"),
-				flags,
-				0,
-				&mut pixel,
-				None,
-			)
-			.map(|()| pixel.expect("failed to map pixel shader"))?;
+		match kind {
+			| ShaderKind::Pixel => {
+				let pixel: d3d::ID3DBlob = fxc::D3DCompileFromFile(
+					file,
+					None,
+					None,
+					s!("ps_main"),
+					s!("ps_5_0"),
+					flags,
+					0,
+					&mut pixel,
+					None,
+				)
+				.map(|()| pixel.expect("failed to map pixel shader"))?;
 
-			Ok(pixel)
-		}
-		| ShaderKind::Vertex => {
-			let vertex: d3d::ID3DBlob = fxc::D3DCompileFromFile(
-				file,
-				None,
-				None,
-				s!("vs_main"),
-				s!("vs_5_0"),
-				flags,
-				0,
-				&mut vertex,
-				None,
-			)
-			.map(|()| vertex.expect("failed to map vertex shader"))?;
+				Ok(pixel)
+			}
+			| ShaderKind::Vertex => {
+				let vertex: d3d::ID3DBlob = fxc::D3DCompileFromFile(
+					file,
+					None,
+					None,
+					s!("vs_main"),
+					s!("vs_5_0"),
+					flags,
+					0,
+					&mut vertex,
+					None,
+				)
+				.map(|()| vertex.expect("failed to map vertex shader"))?;
 
-			Ok(vertex)
+				Ok(vertex)
+			}
 		}
 	}
 }
 
-pub(super) unsafe fn back_buffer_rtv(
+pub(super) fn back_buffer_rtv(
 	device: &d3d11::ID3D11Device, swap_chain: &dxgi::IDXGISwapChain1,
 ) -> Result<d3d11::ID3D11RenderTargetView, windows::core::Error> {
-	let back_buffer: d3d11::ID3D11Texture2D = swap_chain.GetBuffer::<d3d11::ID3D11Texture2D>(0)?;
-	let mut rtv: Option<d3d11::ID3D11RenderTargetView> = None;
+	unsafe {
+		let back_buffer: d3d11::ID3D11Texture2D =
+			swap_chain.GetBuffer::<d3d11::ID3D11Texture2D>(0)?;
+		let mut rtv: Option<d3d11::ID3D11RenderTargetView> = None;
 
-	device.CreateRenderTargetView(&back_buffer, None, Some(&mut rtv))?;
+		device.CreateRenderTargetView(&back_buffer, None, Some(&mut rtv))?;
 
-	Ok(rtv.unwrap())
+		Ok(rtv.unwrap())
+	}
 }
 
-pub(super) unsafe fn select_adapter(
+pub(super) fn select_adapter(
 	factory: &dxgi::IDXGIFactory7, prefer: super::adapter::AdapterKind,
 ) -> Result<dxgi::IDXGIAdapter4, windows::core::Error> {
-	for i in 0.. {
-		let adapter: dxgi::IDXGIAdapter4 =
-			factory.EnumAdapterByGpuPreference(i, prefer.map_to_dxgi())?;
+	unsafe {
+		for i in 0.. {
+			let adapter: dxgi::IDXGIAdapter4 =
+				factory.EnumAdapterByGpuPreference(i, prefer.map_to_dxgi())?;
 
-		if adapter.GetDesc3()?.Flags & dxgi::DXGI_ADAPTER_FLAG3_SOFTWARE
-			!= dxgi::DXGI_ADAPTER_FLAG3_NONE
-		{
-			continue;
+			if adapter.GetDesc3()?.Flags & dxgi::DXGI_ADAPTER_FLAG3_SOFTWARE
+				!= dxgi::DXGI_ADAPTER_FLAG3_NONE
+			{
+				continue;
+			}
+
+			return Ok(adapter);
 		}
 
-		return Ok(adapter);
+		// fallback to software rasterizer (WARP)
+		factory.EnumWarpAdapter()
 	}
-
-	// fallback to software rasterizer (WARP)
-	factory.EnumWarpAdapter()
 }
 
 pub(crate) fn hsla_to_rgba(
