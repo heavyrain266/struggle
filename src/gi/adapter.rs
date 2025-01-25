@@ -38,18 +38,19 @@ impl core::default::Default for Adapter {
 
 impl Adapter {
 	pub(crate) fn new() -> Self {
+		let factory: dxgi::IDXGIFactory7 = unsafe {
+			dxgi::CreateDXGIFactory2(dxgi::DXGI_CREATE_FACTORY_DEBUG)
+				.expect("failed to create dxgi factory")
+		};
+
+		let adapter: dxgi::IDXGIAdapter4 =
+			misc::select_adapter(&factory, AdapterKind::HighPerformance)
+				.expect("failed to select adapter");
+
+		let mut device: Option<d3d11::ID3D11Device> = None;
+		let mut context: Option<d3d11::ID3D11DeviceContext> = None;
+
 		unsafe {
-			let factory: dxgi::IDXGIFactory7 =
-				dxgi::CreateDXGIFactory2(dxgi::DXGI_CREATE_FACTORY_DEBUG)
-					.expect("failed to create dxgi factory");
-
-			let adapter: dxgi::IDXGIAdapter4 =
-				misc::select_adapter(&factory, AdapterKind::HighPerformance)
-					.expect("failed to select adapter");
-
-			let mut device: Option<d3d11::ID3D11Device> = None;
-			let mut context: Option<d3d11::ID3D11DeviceContext> = None;
-
 			d3d11::D3D11CreateDevice(
 				&adapter,
 				d3d::D3D_DRIVER_TYPE_UNKNOWN,
@@ -65,32 +66,32 @@ impl Adapter {
 				None,
 				Some(&mut context),
 			)
-			.expect("failed to create device");
+			.expect("failed to create device")
+		};
 
-			let device: d3d11::ID3D11Device5 = device
-				.expect("failed to create a device")
-				.cast()
-				.expect("failed to cast a ID3D11Device to ID3D11Device5");
-			let context: d3d11::ID3D11DeviceContext4 = context
-				.expect("failed to create a device context")
-				.cast()
-				.expect("failed to cast a ID3D11DeviceContext to ID3D11DeviceContext4");
+		let device: d3d11::ID3D11Device5 = device
+			.expect("failed to create a device")
+			.cast()
+			.expect("failed to cast a ID3D11Device to ID3D11Device5");
+		let context: d3d11::ID3D11DeviceContext4 = context
+			.expect("failed to create a device context")
+			.cast()
+			.expect("failed to cast a ID3D11DeviceContext to ID3D11DeviceContext4");
 
-			Self {
-				factory,
-				device,
-				context,
-				back_buffer_rtv: None,
-				swap_chain: None,
-			}
+		Self {
+			factory,
+			device,
+			context,
+			back_buffer_rtv: None,
+			swap_chain: None,
 		}
 	}
 
 	pub(crate) fn set_swap_chain(
 		&mut self, x: u32, y: u32, hwnd: &HWND,
 	) -> Result<(), windows::core::Error> {
-		unsafe {
-			let swap_chain: dxgi::IDXGISwapChain1 = self.factory.CreateSwapChainForHwnd(
+		let swap_chain: dxgi::IDXGISwapChain1 = unsafe {
+			self.factory.CreateSwapChainForHwnd(
 				&self.device,
 				*hwnd,
 				&dxgi::DXGI_SWAP_CHAIN_DESC1 {
@@ -112,33 +113,37 @@ impl Adapter {
 					..dxgi::DXGI_SWAP_CHAIN_FULLSCREEN_DESC::default()
 				}),
 				None,
-			)?;
+			)
+		}?;
 
+		unsafe {
 			self.factory
-				.MakeWindowAssociation(*hwnd, dxgi::DXGI_MWA_NO_ALT_ENTER)?;
+				.MakeWindowAssociation(*hwnd, dxgi::DXGI_MWA_NO_ALT_ENTER)
+		}?;
 
-			self.back_buffer_rtv = Some(misc::back_buffer_rtv(&self.device, &swap_chain)?);
-			self.swap_chain = Some(swap_chain.cast()?);
+		self.back_buffer_rtv = Some(misc::back_buffer_rtv(&self.device, &swap_chain)?);
+		self.swap_chain = Some(swap_chain.cast()?);
 
-			return Ok(());
-		}
+		return Ok(());
 	}
 
 	pub(crate) fn resize_buffers(&mut self, x: u32, y: u32) -> Result<(), windows::core::Error> {
-		unsafe {
-			self.context.Flush();
-			self.back_buffer_rtv.take();
+		unsafe { self.context.Flush() };
+		self.back_buffer_rtv.take();
 
-			match &mut self.swap_chain {
-				| Some(swap_chain) => {
+		match &mut self.swap_chain {
+			| Some(swap_chain) => {
+				unsafe {
 					swap_chain.ResizeBuffers(
 						0,
 						x,
 						y,
 						dxgi::Common::DXGI_FORMAT_UNKNOWN,
 						dxgi::DXGI_SWAP_CHAIN_FLAG(0),
-					)?;
+					)
+				}?;
 
+				unsafe {
 					self.context.RSSetViewports(Some(&[d3d11::D3D11_VIEWPORT {
 						TopLeftX: 0.0,
 						TopLeftY: 0.0,
@@ -146,28 +151,28 @@ impl Adapter {
 						Height: y as f32,
 						MinDepth: 0.0,
 						MaxDepth: 1.0,
-					}]));
+					}]))
+				};
 
-					self.back_buffer_rtv
-						.replace(misc::back_buffer_rtv(&self.device, swap_chain)?);
-				}
-				| _ => {
-					return Err(windows::core::Error::new(
-						windows::core::HRESULT(-1),
-						"swap chain wasn't created",
-					));
-				}
+				self.back_buffer_rtv
+					.replace(misc::back_buffer_rtv(&self.device, swap_chain)?);
 			}
-
-			return Ok(());
+			| None => {
+				return Err(windows::core::Error::new(
+					windows::core::HRESULT(-1),
+					"swap chain wasn't created",
+				));
+			}
 		}
+
+		return Ok(());
 	}
 
 	pub(crate) fn present(&mut self, rgba: &[f32; 4]) -> Result<(), windows::core::Error> {
-		unsafe {
-			if let Some(swap_chain) = &self.swap_chain {
-				let sw_desc: dxgi::DXGI_SWAP_CHAIN_DESC1 = swap_chain.GetDesc1()?;
+		if let Some(swap_chain) = &self.swap_chain {
+			let sw_desc: dxgi::DXGI_SWAP_CHAIN_DESC1 = unsafe { swap_chain.GetDesc1() }?;
 
+			unsafe {
 				self.context.RSSetViewports(Some(&[d3d11::D3D11_VIEWPORT {
 					TopLeftX: 0.0,
 					TopLeftY: 0.0,
@@ -175,25 +180,29 @@ impl Adapter {
 					Height: sw_desc.Height as f32,
 					MinDepth: 0.0,
 					MaxDepth: 1.0,
-				}]));
-			}
+				}]))
+			};
+		}
 
-			match &self.back_buffer_rtv {
-				| Some(rtv) => {
+		match &self.back_buffer_rtv {
+			| Some(rtv) => {
+				unsafe {
 					self.context
-						.OMSetRenderTargets(Some(&[Some(rtv.clone())]), None);
-					self.context.ClearRenderTargetView(rtv, rgba);
-				}
-				| _ => {
-					return Err(windows::core::Error::new(
-						windows::core::HRESULT(-1),
-						"rtv wasn't created",
-					));
-				}
+						.OMSetRenderTargets(Some(&[Some(rtv.clone())]), None)
+				};
+				unsafe { self.context.ClearRenderTargetView(rtv, rgba) };
 			}
+			| None => {
+				return Err(windows::core::Error::new(
+					windows::core::HRESULT(-1),
+					"rtv wasn't created",
+				));
+			}
+		}
 
-			match &self.swap_chain {
-				| Some(swap_chain) => {
+		match &self.swap_chain {
+			| Some(swap_chain) => {
+				unsafe {
 					swap_chain
 						.Present1(
 							1,
@@ -201,17 +210,17 @@ impl Adapter {
 							&dxgi::DXGI_PRESENT_PARAMETERS::default(),
 						)
 						.ok()
-						.expect("failed to present swapchain content");
-				}
-				| _ => {
-					return Err(windows::core::Error::new(
-						windows::core::HRESULT(-1),
-						"swap chain wasn't created",
-					));
-				}
+						.expect("failed to present swapchain content")
+				};
 			}
-
-			return Ok(());
+			| None => {
+				return Err(windows::core::Error::new(
+					windows::core::HRESULT(-1),
+					"swap chain wasn't created",
+				));
+			}
 		}
+
+		return Ok(());
 	}
 }
