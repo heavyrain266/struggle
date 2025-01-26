@@ -2,7 +2,10 @@
 //!
 //! A module used to select device, setup swap chain and present frames to the window.
 
-use super::{BOOL, HMODULE, HWND, Interface, d3d, d3d11, dxgi, misc};
+use super::{
+	BOOL, HMODULE, HWND, Interface, d3d, d3d11, dxgi,
+	misc::{self, hsla_to_rgba},
+};
 use crate::timer::Timer;
 
 /// AdapterKind
@@ -112,16 +115,14 @@ impl Context {
 		}
 	}
 
-	pub(crate) fn set_swap_chain(
-		&mut self, x: u32, y: u32, hwnd: &HWND,
-	) -> Result<(), windows::core::Error> {
+	pub(crate) fn set_swap_chain(&mut self, hwnd: &HWND) -> Result<(), windows::core::Error> {
 		let swap_chain: dxgi::IDXGISwapChain1 = unsafe {
 			self.factory.CreateSwapChainForHwnd(
 				&self.device,
 				*hwnd,
 				&dxgi::DXGI_SWAP_CHAIN_DESC1 {
-					Width: x,
-					Height: y,
+					Width: 0,
+					Height: 0,
 					Format: dxgi::Common::DXGI_FORMAT_R8G8B8A8_UNORM,
 					SampleDesc: dxgi::Common::DXGI_SAMPLE_DESC {
 						Count: 1,
@@ -156,33 +157,33 @@ impl Context {
 		self.back_buffer_rtv.take();
 		unsafe { self.cmd_list.Flush() };
 
-		match &mut self.swap_chain {
-			| Some(swap_chain) => unsafe {
-				swap_chain.ResizeBuffers(
-					0,
-					x,
-					y,
-					dxgi::Common::DXGI_FORMAT_UNKNOWN,
-					dxgi::DXGI_SWAP_CHAIN_FLAG(0),
-				)?;
+		let Some(swap_chain) = &mut self.swap_chain else {
+			return Err(windows::core::Error::new(
+				windows::core::HRESULT(-1),
+				"swap chain wasn't created",
+			));
+		};
 
-				self.back_buffer_rtv
-					.replace(misc::back_buffer_rtv(&self.device, swap_chain)?);
-				self.cmd_list.RSSetViewports(Some(&[d3d11::D3D11_VIEWPORT {
-					TopLeftX: 0.0,
-					TopLeftY: 0.0,
-					Width: x as f32,
-					Height: y as f32,
-					MinDepth: 0.0,
-					MaxDepth: 1.0,
-				}]))
-			},
-			| None => {
-				return Err(windows::core::Error::new(
-					windows::core::HRESULT(-1),
-					"swap chain wasn't created",
-				));
-			}
+		unsafe {
+			swap_chain.ResizeBuffers(
+				0,
+				x,
+				y,
+				dxgi::Common::DXGI_FORMAT_UNKNOWN,
+				dxgi::DXGI_SWAP_CHAIN_FLAG(0),
+			)?;
+
+			self.back_buffer_rtv
+				.replace(misc::back_buffer_rtv(&self.device, swap_chain)?);
+
+			self.cmd_list.RSSetViewports(Some(&[d3d11::D3D11_VIEWPORT {
+				TopLeftX: 0.0,
+				TopLeftY: 0.0,
+				Width: x as f32,
+				Height: y as f32,
+				MinDepth: 0.0,
+				MaxDepth: 1.0,
+			}]))
 		}
 
 		return Ok(());
@@ -192,60 +193,43 @@ impl Context {
 		self.timer.update();
 		self.time += self.timer.delta.as_secs_f32();
 
-		let (r, g, b, a) =
-			crate::gi::misc::hsla_to_rgba(self.time * std::f32::consts::PI * 40.0, 0.4, 0.8, 1.0);
+		let (r, g, b, a) = hsla_to_rgba(self.time * std::f32::consts::PI * 40.0, 0.4, 0.8, 1.0);
+		let Some(swap_chain) = &self.swap_chain else {
+			return Err(windows::core::Error::new(
+				windows::core::HRESULT(-1),
+				"swap chain wasn't created",
+			));
+		};
+		let Some(rtv) = &self.back_buffer_rtv else {
+			return Err(windows::core::Error::new(
+				windows::core::HRESULT(-1),
+				"rtv wasn't created",
+			));
+		};
 
-		match &self.swap_chain {
-			| Some(swap_chain) => unsafe {
-				self.cmd_list.RSSetViewports(Some(&[d3d11::D3D11_VIEWPORT {
-					TopLeftX: 0.0,
-					TopLeftY: 0.0,
-					Width: swap_chain.GetDesc1()?.Width as f32,
-					Height: swap_chain.GetDesc1()?.Height as f32,
-					MinDepth: 0.0,
-					MaxDepth: 1.0,
-				}]));
-			},
-			| None => {
-				return Err(windows::core::Error::new(
-					windows::core::HRESULT(-1),
-					"swap chain wasn't created",
-				));
-			}
-		}
+		unsafe {
+			self.cmd_list.RSSetViewports(Some(&[d3d11::D3D11_VIEWPORT {
+				TopLeftX: 0.0,
+				TopLeftY: 0.0,
+				Width: swap_chain.GetDesc1()?.Width as f32,
+				Height: swap_chain.GetDesc1()?.Height as f32,
+				MinDepth: 0.0,
+				MaxDepth: 1.0,
+			}]));
 
-		match &self.back_buffer_rtv {
-			| Some(rtv) => unsafe {
-				self.cmd_list.ClearRenderTargetView(rtv, &[r, g, b, a]);
-				self.cmd_list
-					.OMSetRenderTargets(Some(&[Some(rtv.clone())]), None);
-			},
-			| None => {
-				return Err(windows::core::Error::new(
-					windows::core::HRESULT(-1),
-					"rtv wasn't created",
-				));
-			}
-		}
+			self.cmd_list.ClearRenderTargetView(rtv, &[r, g, b, a]);
+			self.cmd_list
+				.OMSetRenderTargets(Some(&[Some(rtv.clone())]), None);
 
-		match &self.swap_chain {
-			| Some(swap_chain) => unsafe {
-				swap_chain
-					.Present1(
-						1,
-						dxgi::DXGI_PRESENT(0),
-						&dxgi::DXGI_PRESENT_PARAMETERS::default(),
-					)
-					.ok()
-					.expect("failed to present swapchain content");
-			},
-			| None => {
-				return Err(windows::core::Error::new(
-					windows::core::HRESULT(-1),
-					"swap chain wasn't created",
-				));
-			}
-		}
+			swap_chain
+				.Present1(
+					1,
+					dxgi::DXGI_PRESENT(0),
+					&dxgi::DXGI_PRESENT_PARAMETERS::default(),
+				)
+				.ok()
+				.expect("failed to present swapchain content")
+		};
 
 		return Ok(());
 	}

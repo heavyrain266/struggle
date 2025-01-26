@@ -46,28 +46,32 @@ impl ApplicationHandler for TestD3D11 {
 			.create_window(attributes)
 			.expect("failed to create a window");
 
-		if let Some(monitor) = window.current_monitor() {
-			let sf: winit::dpi::LogicalSize<u32> =
-				monitor.size().to_logical::<u32>(monitor.scale_factor());
-			let size: (u32, u32) = (window.inner_size().width, window.inner_size().height);
+		let Some(monitor) = window.current_monitor() else {
+			return;
+		};
 
-			window.set_outer_position(winit::dpi::LogicalPosition::new(
-				(sf.width - size.0) / 2,
-				(sf.height - size.1) / 2,
-			));
-		}
-
-		let RawWindowHandle::Win32(handle) = window.window_handle().unwrap().as_raw() else {
-			unreachable!()
+		let RawWindowHandle::Win32(handle) = window
+			.window_handle()
+			.expect("failed to get window handle")
+			.as_raw()
+		else {
+			panic!("expected a win32 window handle");
 		};
 
 		self.context
-			.set_swap_chain(
-				window.inner_size().width,
-				window.inner_size().height,
-				&windows::Win32::Foundation::HWND(handle.hwnd.get() as *mut std::ffi::c_void),
-			)
+			.set_swap_chain(&windows::Win32::Foundation::HWND(
+				handle.hwnd.get() as *mut std::ffi::c_void
+			))
 			.expect("failed to create swapchain");
+
+		let sf: winit::dpi::LogicalSize<u32> =
+			monitor.size().to_logical::<u32>(monitor.scale_factor());
+		let size: (u32, u32) = (window.inner_size().width, window.inner_size().height);
+
+		window.set_outer_position(winit::dpi::LogicalPosition::new(
+			(sf.width - size.0) / 2,
+			(sf.height - size.1) / 2,
+		));
 
 		self.window = Some(window);
 	}
@@ -78,24 +82,24 @@ impl ApplicationHandler for TestD3D11 {
 		match event {
 			| WindowEvent::CloseRequested => event_loop.exit(),
 			| WindowEvent::Resized(size) => {
-				if let Some(window) = &self.window {
+				if let Some(wnd) = &self.window {
 					let lsize: winit::dpi::LogicalSize<u32> =
-						size.to_logical::<u32>(window.scale_factor());
+						size.to_logical::<u32>(wnd.scale_factor());
 
 					if lsize.width != 0 && lsize.height != 0 {
 						self.context
 							.resize_buffers(lsize.width, lsize.height)
 							.expect("failed to resize swap chain buffers");
 					}
-					
-					window.request_redraw();
+
+					wnd.request_redraw();
 				}
 			}
 			| WindowEvent::RedrawRequested => {
-				if let Some(window) = &self.window {
+				if let Some(wnd) = &self.window {
 					self.context.present().expect("failed to present frames");
 
-					window.request_redraw();
+					wnd.request_redraw();
 				}
 			}
 			| _ => (),
