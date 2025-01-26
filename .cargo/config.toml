@@ -1,22 +1,3 @@
-[target.'cfg(all())']
-rustflags = [
-  # nightly
-  "-Zunstable-options",
-  "-Zshare-generics=y",
-  "-Zthreads=16",
-  "-Ctarget-cpu=native",
-
-  # stable
-  "-Wclippy::all",
-  "-Ddeprecated",
-  "-Dredundant-imports",
-  "-Ffuture-incompatible",
-  "-Fmissing-unsafe-on-extern",
-  "-Fdeprecated-in-future",
-  "-Fdeprecated-safe-2024",
-  "-Frust-2024-compatibility",
-]
-
 [unstable]
 codegen-backend = true
 
@@ -30,3 +11,22 @@ opt-level = "z"
 [profile.release.package."*"]
 strip = true
 opt-level = 3
+
+[target.'cfg(all())']
+rustflags = [
+  # nightly
+  "-Zunstable-options",
+  "-Zshare-generics=y",
+  "-Ctarget-cpu=native",
+  "-Zthreads=16",
+
+  # stable
+  "-Wclippy::all",
+  "-Fdeprecated",
+  "-Fredundant-imports",
+  "-Ffuture-incompatible",
+  "-Fmissing-unsafe-on-extern",
+  "-Fdeprecated-in-future",
+  "-Fdeprecated-safe-2024",
+  "-Frust-2024-compatibility",
+]

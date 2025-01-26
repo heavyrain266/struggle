@@ -1,6 +1,6 @@
-//! Graphics Interface
+//! Hardware Abstraction Layer
 //!
-//! A set of modules used to interact with GPU.
+//! A set of modules used to abstract d3d11 calls away from application
 
 mod buffers;
 

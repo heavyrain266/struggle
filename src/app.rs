@@ -12,7 +12,7 @@ use winit::{
 	window::{Window, WindowAttributes, WindowId},
 };
 
-use crate::gi::context::Context;
+use crate::hal::context::Context;
 
 /// DirectX 11 Test
 ///
