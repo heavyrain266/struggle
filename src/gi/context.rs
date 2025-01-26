@@ -173,9 +173,6 @@ impl Context {
 				dxgi::DXGI_SWAP_CHAIN_FLAG(0),
 			)?;
 
-			self.back_buffer_rtv
-				.replace(misc::back_buffer_rtv(&self.device, swap_chain)?);
-
 			self.cmd_list.RSSetViewports(Some(&[d3d11::D3D11_VIEWPORT {
 				TopLeftX: 0.0,
 				TopLeftY: 0.0,
@@ -183,7 +180,9 @@ impl Context {
 				Height: y as f32,
 				MinDepth: 0.0,
 				MaxDepth: 1.0,
-			}]))
+			}]));
+			self.back_buffer_rtv
+				.replace(misc::back_buffer_rtv(&self.device, swap_chain)?);
 		}
 
 		return Ok(());
@@ -203,23 +202,22 @@ impl Context {
 		let Some(rtv) = &self.back_buffer_rtv else {
 			return Err(windows::core::Error::new(
 				windows::core::HRESULT(-1),
-				"rtv wasn't created",
+				"back buffer RTV wasn't created",
 			));
 		};
 
 		unsafe {
+			self.cmd_list
+				.OMSetRenderTargets(Some(&[Some(rtv.clone())]), None);
 			self.cmd_list.RSSetViewports(Some(&[d3d11::D3D11_VIEWPORT {
 				TopLeftX: 0.0,
 				TopLeftY: 0.0,
-				Width: swap_chain.GetDesc1()?.Width as f32,
-				Height: swap_chain.GetDesc1()?.Height as f32,
+				Width: 0.0,
+				Height: 0.0,
 				MinDepth: 0.0,
 				MaxDepth: 1.0,
 			}]));
-
 			self.cmd_list.ClearRenderTargetView(rtv, &[r, g, b, a]);
-			self.cmd_list
-				.OMSetRenderTargets(Some(&[Some(rtv.clone())]), None);
 
 			swap_chain
 				.Present1(
