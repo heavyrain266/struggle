@@ -4,8 +4,8 @@
 
 mod buffers;
 
-pub(crate) mod context;
-pub(crate) mod misc;
+pub mod context;
+pub mod misc;
 
 use windows::{
 	Win32::{

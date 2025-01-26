@@ -6,14 +6,12 @@
 
 use super::{HSTRING, d3d, d3d11, dxgi, fxc, s};
 
-pub(super) enum ShaderKind {
+pub enum ShaderKind {
 	Pixel,
 	Vertex,
 }
 
-pub(super) fn compile(
-	file: &HSTRING, kind: ShaderKind,
-) -> Result<d3d::ID3DBlob, windows::core::Error> {
+pub fn compile(file: &HSTRING, kind: &ShaderKind) -> Result<d3d::ID3DBlob, windows::core::Error> {
 	let flags: u32 = if cfg!(debug_assertions) {
 		fxc::D3DCOMPILE_DEBUG | fxc::D3DCOMPILE_SKIP_OPTIMIZATION
 	} else {
@@ -40,7 +38,7 @@ pub(super) fn compile(
 				.map(|()| pixel.expect("failed to map pixel shader"))?
 			};
 
-			Ok(pixel)
+			return Ok(pixel)
 		}
 		| ShaderKind::Vertex => {
 			let vertex: d3d::ID3DBlob = unsafe {
@@ -58,12 +56,12 @@ pub(super) fn compile(
 				.map(|()| vertex.expect("failed to map vertex shader"))?
 			};
 
-			Ok(vertex)
+			return Ok(vertex)
 		}
 	}
 }
 
-pub(super) fn back_buffer_rtv(
+pub fn back_buffer_rtv(
 	device: &d3d11::ID3D11Device, swap_chain: &dxgi::IDXGISwapChain1,
 ) -> Result<d3d11::ID3D11RenderTargetView, windows::core::Error> {
 	let back_buffer: d3d11::ID3D11Texture2D =
@@ -72,11 +70,11 @@ pub(super) fn back_buffer_rtv(
 
 	unsafe { device.CreateRenderTargetView(&back_buffer, None, Some(&mut rtv))? };
 
-	Ok(rtv.unwrap())
+	return Ok(rtv.unwrap())
 }
 
-pub(super) fn select_adapter(
-	factory: &dxgi::IDXGIFactory7, prefer: super::context::AdapterKind,
+pub fn select_adapter(
+	factory: &dxgi::IDXGIFactory7, prefer: &super::context::AdapterKind,
 ) -> Result<dxgi::IDXGIAdapter4, windows::core::Error> {
 	for i in 0.. {
 		let adapter: dxgi::IDXGIAdapter4 =
@@ -95,16 +93,14 @@ pub(super) fn select_adapter(
 	unsafe { factory.EnumWarpAdapter() }
 }
 
-pub(crate) fn hsla_to_rgba(
-	hue: f32, saturation: f32, lightness: f32, alpha: f32,
-) -> (f32, f32, f32, f32) {
+pub fn hsla_to_rgba(hue: f32, saturation: f32, lightness: f32, alpha: f32) -> [f32; 4] {
 	let (h, s, l): (f32, f32, f32) = (
 		hue.rem_euclid(360.0),
 		saturation.clamp(0.0, 1.0),
 		lightness.clamp(0.0, 1.0),
 	);
 
-	let c: f32 = (1.0 - (2.0 * l - 1.0).abs()) * s;
+	let c: f32 = (1.0 - 2.0f32.mul_add(l, -1.0)) * s;
 	let x: f32 = c * (1.0 - ((h / 60.0).rem_euclid(2.0) - 1.0).abs());
 	let m: f32 = l - c / 2.0;
 
@@ -117,5 +113,5 @@ pub(crate) fn hsla_to_rgba(
 		| _ => (c, 0.0, x),
 	};
 
-	return (r + m, g + m, b + m, alpha);
+	return [r + m, g + m, b + m, alpha];
 }

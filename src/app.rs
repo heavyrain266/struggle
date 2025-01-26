@@ -17,20 +17,12 @@ use crate::hal::context::Context;
 /// DirectX 11 Test
 ///
 /// Encapsulates the components for testing D3D11 rendering
-pub(super) struct TestD3D11 {
+#[derive(Default)]
+pub struct TestD3D11 {
 	/// A graphics adapter used for rendering.
 	context: Context,
 	/// An optional window for rendering.
 	window: Option<Window>,
-}
-
-impl Default for TestD3D11 {
-	fn default() -> Self {
-		Self {
-			context: Context::default(),
-			window: None,
-		}
-	}
 }
 
 impl ApplicationHandler for TestD3D11 {
@@ -69,7 +61,7 @@ impl ApplicationHandler for TestD3D11 {
 		};
 
 		self.context
-			.set_swap_chain(&windows::Win32::Foundation::HWND(
+			.set_swap_chain(windows::Win32::Foundation::HWND(
 				handle.hwnd.get() as *mut std::ffi::c_void
 			))
 			.expect("failed to create swapchain");
@@ -87,9 +79,9 @@ impl ApplicationHandler for TestD3D11 {
 		match event {
 			| WindowEvent::CloseRequested => event_loop.exit(),
 			| WindowEvent::Resized(size) => {
-				let lsize: LogicalSize<u32> = size.to_logical::<u32>(window.scale_factor());
+				let lsize: LogicalSize<f32> = size.to_logical::<f32>(window.scale_factor());
 
-				if lsize.width != 0 && lsize.height != 0 {
+				if lsize.width != 0.0 && lsize.height != 0.0 {
 					self.context
 						.resize_buffers(lsize.width, lsize.height)
 						.expect("failed to resize swap chain buffers");

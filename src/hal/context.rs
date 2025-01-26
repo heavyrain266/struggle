@@ -1,4 +1,4 @@
-//! Adapter
+//! `Context`
 //!
 //! A module used to select device, setup swap chain and present frames to the window.
 
@@ -8,12 +8,12 @@ use super::{
 };
 use crate::timer::Timer;
 
-/// AdapterKind
+/// `AdapterKind`
 ///
 /// Allows for specifying whether to prioritize power efficiency,
 /// performance, or use the system's default preference.
 #[allow(unused)]
-pub(super) enum AdapterKind {
+pub enum AdapterKind {
 	/// The system will choose the adapter.
 	Unspecified,
 	/// Prefer the adapter with the lowest power consumption.
@@ -24,7 +24,7 @@ pub(super) enum AdapterKind {
 
 impl AdapterKind {
 	/// Maps the [`AdapterKind`] to the corresponding [`dxgi::DXGI_GPU_PREFERENCE`] value.
-	pub(super) fn map_to_dxgi(&self) -> dxgi::DXGI_GPU_PREFERENCE {
+	pub const fn map_to_dxgi(&self) -> dxgi::DXGI_GPU_PREFERENCE {
 		match self {
 			| Self::Unspecified => dxgi::DXGI_GPU_PREFERENCE_UNSPECIFIED,
 			| Self::MinimumPower => dxgi::DXGI_GPU_PREFERENCE_MINIMUM_POWER,
@@ -33,15 +33,15 @@ impl AdapterKind {
 	}
 }
 
-/// Adapter
+/// Context
 ///
 /// A wrapper for device, context and resources.
-pub(crate) struct Context {
+pub struct Context {
 	/// D3D11 device
 	device: d3d11::ID3D11Device5,
 	/// D3D11 device context
 	cmd_list: d3d11::ID3D11DeviceContext4,
-	/// RenderTargetView derived from back buffer
+	/// Render Targe tView derived from back buffer
 	back_buffer_rtv: Option<d3d11::ID3D11RenderTargetView>,
 
 	/// Time value for animations etc
@@ -57,7 +57,7 @@ pub(crate) struct Context {
 
 impl core::default::Default for Context {
 	fn default() -> Self {
-		return Self::new();
+		Self::new()
 	}
 }
 
@@ -70,7 +70,7 @@ impl Context {
 		};
 
 		let adapter: dxgi::IDXGIAdapter4 =
-			misc::select_adapter(&factory, AdapterKind::HighPerformance)
+			misc::select_adapter(&factory, &AdapterKind::HighPerformance)
 				.expect("failed to select adapter");
 
 		let mut device: Option<d3d11::ID3D11Device> = None;
@@ -92,7 +92,7 @@ impl Context {
 				None,
 				Some(&mut context),
 			)
-			.expect("failed to create device")
+			.expect("failed to create device");
 		};
 
 		let device: d3d11::ID3D11Device5 = device
@@ -115,11 +115,11 @@ impl Context {
 		}
 	}
 
-	pub(crate) fn set_swap_chain(&mut self, hwnd: &HWND) -> Result<(), windows::core::Error> {
+	pub(crate) fn set_swap_chain(&mut self, hwnd: HWND) -> Result<(), windows::core::Error> {
 		let swap_chain: dxgi::IDXGISwapChain1 = unsafe {
 			self.factory.CreateSwapChainForHwnd(
 				&self.device,
-				*hwnd,
+				hwnd,
 				&dxgi::DXGI_SWAP_CHAIN_DESC1 {
 					Width: 0,
 					Height: 0,
@@ -144,7 +144,7 @@ impl Context {
 
 		unsafe {
 			self.factory
-				.MakeWindowAssociation(*hwnd, dxgi::DXGI_MWA_NO_ALT_ENTER)?;
+				.MakeWindowAssociation(hwnd, dxgi::DXGI_MWA_NO_ALT_ENTER)?;
 		}
 
 		self.back_buffer_rtv = Some(misc::back_buffer_rtv(&self.device, &swap_chain)?);
@@ -153,7 +153,7 @@ impl Context {
 		return Ok(());
 	}
 
-	pub(crate) fn resize_buffers(&mut self, x: u32, y: u32) -> Result<(), windows::core::Error> {
+	pub(crate) fn resize_buffers(&mut self, x: f32, y: f32) -> Result<(), windows::core::Error> {
 		self.back_buffer_rtv.take();
 		unsafe { self.cmd_list.Flush() };
 
@@ -167,8 +167,8 @@ impl Context {
 		unsafe {
 			swap_chain.ResizeBuffers(
 				0,
-				x,
-				y,
+				0,
+				0,
 				dxgi::Common::DXGI_FORMAT_UNKNOWN,
 				dxgi::DXGI_SWAP_CHAIN_FLAG(0),
 			)?;
@@ -176,8 +176,8 @@ impl Context {
 			self.cmd_list.RSSetViewports(Some(&[d3d11::D3D11_VIEWPORT {
 				TopLeftX: 0.0,
 				TopLeftY: 0.0,
-				Width: x as f32,
-				Height: y as f32,
+				Width: x,
+				Height: y,
 				MinDepth: 0.0,
 				MaxDepth: 1.0,
 			}]));
@@ -192,7 +192,7 @@ impl Context {
 		self.timer.update();
 		self.time += self.timer.delta.as_secs_f32();
 
-		let (r, g, b, a) = hsla_to_rgba(self.time * std::f32::consts::PI * 40.0, 0.4, 0.8, 1.0);
+		let rgba: [f32; 4] = hsla_to_rgba(self.time * std::f32::consts::PI * 40.0, 0.4, 0.8, 1.0);
 		let Some(swap_chain) = &self.swap_chain else {
 			return Err(windows::core::Error::new(
 				windows::core::HRESULT(-1),
@@ -217,7 +217,7 @@ impl Context {
 				MinDepth: 0.0,
 				MaxDepth: 1.0,
 			}]));
-			self.cmd_list.ClearRenderTargetView(rtv, &[r, g, b, a]);
+			self.cmd_list.ClearRenderTargetView(rtv, &rgba);
 
 			swap_chain
 				.Present1(
@@ -226,7 +226,7 @@ impl Context {
 					&dxgi::DXGI_PRESENT_PARAMETERS::default(),
 				)
 				.ok()
-				.expect("failed to present swapchain content")
+				.expect("failed to present swapchain content");
 		};
 
 		return Ok(());

@@ -2,7 +2,7 @@
 //!
 //! A module used to track elapsed time between frames.
 
-pub(crate) struct Timer {
+pub struct Timer {
 	/// The time at which the last frame was updated.
 	last_frame: std::time::Instant,
 

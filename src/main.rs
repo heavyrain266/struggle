@@ -1,6 +1,10 @@
-//! test_dx11
+//! `test_dx11`
 //!
-//! some graphics tests.
+//! Some graphics tests.
+
+#![allow(clippy::cast_sign_loss)]
+#![allow(clippy::needless_return)]
+#![allow(clippy::cast_possible_truncation)]
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod app;
