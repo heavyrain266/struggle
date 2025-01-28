@@ -18,14 +18,14 @@ use crate::hal::context::Context;
 ///
 /// Encapsulates the components for testing D3D11 rendering
 #[derive(Default)]
-pub struct TestD3D11 {
+pub struct Struggle {
 	/// A graphics adapter used for rendering.
 	context: Context,
 	/// An optional window for rendering.
 	window: Option<Window>,
 }
 
-impl ApplicationHandler for TestD3D11 {
+impl ApplicationHandler for Struggle {
 	fn resumed(&mut self, event_loop: &ActiveEventLoop) {
 		let attributes: WindowAttributes = WindowAttributes::default()
 			.with_active(true)
