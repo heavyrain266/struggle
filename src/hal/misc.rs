@@ -38,7 +38,7 @@ pub fn compile(file: &HSTRING, kind: &ShaderKind) -> Result<d3d::ID3DBlob, windo
 				.map(|()| pixel.expect("failed to map pixel shader"))?
 			};
 
-			return Ok(pixel)
+			return Ok(pixel);
 		}
 		| ShaderKind::Vertex => {
 			let vertex: d3d::ID3DBlob = unsafe {
@@ -56,21 +56,26 @@ pub fn compile(file: &HSTRING, kind: &ShaderKind) -> Result<d3d::ID3DBlob, windo
 				.map(|()| vertex.expect("failed to map vertex shader"))?
 			};
 
-			return Ok(vertex)
+			return Ok(vertex);
 		}
 	}
 }
 
-pub fn back_buffer_rtv(
+pub fn framebuffer_rtv(
 	device: &d3d11::ID3D11Device, swap_chain: &dxgi::IDXGISwapChain1,
 ) -> Result<d3d11::ID3D11RenderTargetView, windows::core::Error> {
-	let back_buffer: d3d11::ID3D11Texture2D =
+	let texture: d3d11::ID3D11Texture2D =
 		unsafe { swap_chain.GetBuffer::<d3d11::ID3D11Texture2D>(0)? };
-	let mut rtv: Option<d3d11::ID3D11RenderTargetView> = None;
+	let desc: d3d11::D3D11_RENDER_TARGET_VIEW_DESC = d3d11::D3D11_RENDER_TARGET_VIEW_DESC {
+		Format: dxgi::Common::DXGI_FORMAT_B8G8R8A8_UNORM_SRGB,
+		ViewDimension: d3d11::D3D11_RTV_DIMENSION_TEXTURE2D,
+		..Default::default()
+	};
+	let mut rt_view: Option<d3d11::ID3D11RenderTargetView> = None;
 
-	unsafe { device.CreateRenderTargetView(&back_buffer, None, Some(&mut rtv))? };
+	unsafe { device.CreateRenderTargetView(&texture, Some(&desc), Some(&mut rt_view))? };
 
-	return Ok(rtv.unwrap())
+	return Ok(rt_view.unwrap());
 }
 
 pub fn select_adapter(
@@ -93,25 +98,26 @@ pub fn select_adapter(
 	unsafe { factory.EnumWarpAdapter() }
 }
 
-pub fn hsla_to_rgba(hue: f32, saturation: f32, lightness: f32, alpha: f32) -> [f32; 4] {
-	let (h, s, l): (f32, f32, f32) = (
-		hue.rem_euclid(360.0),
-		saturation.clamp(0.0, 1.0),
-		lightness.clamp(0.0, 1.0),
+// NOTE: should I consider simd?
+pub fn hsla_to_rgba(hsla: &[f32; 4]) -> [f32; 4] {
+	let (hue, saturation, lightness): (f32, f32, f32) = (
+		hsla[0].rem_euclid(360.0),
+		hsla[1].clamp(0.0, 1.0),
+		hsla[2].clamp(0.0, 1.0),
 	);
 
-	let c: f32 = (1.0 - 2.0f32.mul_add(l, -1.0)) * s;
-	let x: f32 = c * (1.0 - ((h / 60.0).rem_euclid(2.0) - 1.0).abs());
-	let m: f32 = l - c / 2.0;
+	let chroma: f32 = (1.0 - 2.0f32.mul_add(lightness, -1.0)) * saturation;
+	let imval: f32 = chroma * (1.0 - ((hue / 60.0).rem_euclid(2.0) - 1.0).abs());
+	let offset: f32 = lightness - chroma / 2.0;
 
-	let (r, g, b) = match (h as u32) / 60 {
-		| 0 => (c, x, 0.0),
-		| 1 => (x, c, 0.0),
-		| 2 => (0.0, c, x),
-		| 3 => (0.0, x, c),
-		| 4 => (x, 0.0, c),
-		| _ => (c, 0.0, x),
+	let (red, green, blue): (f32, f32, f32) = match (hue as u32) / 60 {
+		| 0 => (chroma, imval, 0.0),
+		| 1 => (imval, chroma, 0.0),
+		| 2 => (0.0, chroma, imval),
+		| 3 => (0.0, imval, chroma),
+		| 4 => (imval, 0.0, chroma),
+		| _ => (chroma, 0.0, imval),
 	};
 
-	return [r + m, g + m, b + m, alpha];
+	return [red + offset, green + offset, blue + offset, hsla[3]];
 }

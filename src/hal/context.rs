@@ -42,7 +42,7 @@ pub struct Context {
 	/// D3D11 device context
 	cmd_list: d3d11::ID3D11DeviceContext4,
 	/// Render Targe tView derived from back buffer
-	back_buffer_rtv: Option<d3d11::ID3D11RenderTargetView>,
+	framebuffer_rtv: Option<d3d11::ID3D11RenderTargetView>,
 
 	/// Time value for animations etc
 	time: f32,
@@ -108,7 +108,7 @@ impl Context {
 			factory,
 			device,
 			cmd_list: context,
-			back_buffer_rtv: None,
+			framebuffer_rtv: None,
 			time: 0.0,
 			timer: Timer::new(),
 			swap_chain: None,
@@ -123,7 +123,7 @@ impl Context {
 				&dxgi::DXGI_SWAP_CHAIN_DESC1 {
 					Width: 0,
 					Height: 0,
-					Format: dxgi::Common::DXGI_FORMAT_R8G8B8A8_UNORM,
+					Format: dxgi::Common::DXGI_FORMAT_B8G8R8A8_UNORM,
 					SampleDesc: dxgi::Common::DXGI_SAMPLE_DESC {
 						Count: 1,
 						Quality: 0,
@@ -147,14 +147,14 @@ impl Context {
 				.MakeWindowAssociation(hwnd, dxgi::DXGI_MWA_NO_ALT_ENTER)?;
 		}
 
-		self.back_buffer_rtv = Some(misc::back_buffer_rtv(&self.device, &swap_chain)?);
+		self.framebuffer_rtv = Some(misc::framebuffer_rtv(&self.device, &swap_chain)?);
 		self.swap_chain = Some(swap_chain.cast()?);
 
 		return Ok(());
 	}
 
 	pub(crate) fn resize_buffers(&mut self, x: f32, y: f32) -> Result<(), windows::core::Error> {
-		self.back_buffer_rtv.take();
+		self.framebuffer_rtv.take();
 		unsafe { self.cmd_list.Flush() };
 
 		let Some(swap_chain) = &mut self.swap_chain else {
@@ -181,8 +181,8 @@ impl Context {
 				MinDepth: 0.0,
 				MaxDepth: 1.0,
 			}]));
-			self.back_buffer_rtv
-				.replace(misc::back_buffer_rtv(&self.device, swap_chain)?);
+			self.framebuffer_rtv
+				.replace(misc::framebuffer_rtv(&self.device, swap_chain)?);
 		}
 
 		return Ok(());
@@ -192,14 +192,16 @@ impl Context {
 		self.timer.update();
 		self.time += self.timer.delta.as_secs_f32();
 
-		let rgba: [f32; 4] = hsla_to_rgba(self.time * std::f32::consts::PI * 40.0, 0.4, 0.8, 1.0);
+		let rgba: [f32; 4] =
+
+			hsla_to_rgba(&[self.time * std::f32::consts::PI * 40.0, 0.4, 0.7, 1.0]);
 		let Some(swap_chain) = &self.swap_chain else {
 			return Err(windows::core::Error::new(
 				windows::core::HRESULT(-1),
 				"swap chain wasn't created",
 			));
 		};
-		let Some(rtv) = &self.back_buffer_rtv else {
+		let Some(rtv) = &self.framebuffer_rtv else {
 			return Err(windows::core::Error::new(
 				windows::core::HRESULT(-1),
 				"back buffer RTV wasn't created",
