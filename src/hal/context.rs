@@ -8,22 +8,14 @@ use super::{
 };
 use crate::timer::Timer;
 
-/// `AdapterKind`
-///
-/// Allows for specifying whether to prioritize power efficiency,
-/// performance, or use the system's default preference.
 #[allow(unused)]
 pub enum AdapterKind {
-	/// The system will choose the adapter.
 	Unspecified,
-	/// Prefer the adapter with the lowest power consumption.
 	MinimumPower,
-	/// Prefer the adapter with the highest performance.
 	HighPerformance,
 }
 
 impl AdapterKind {
-	/// Maps the [`AdapterKind`] to the corresponding [`dxgi::DXGI_GPU_PREFERENCE`] value.
 	pub const fn map_to_dxgi(&self) -> dxgi::DXGI_GPU_PREFERENCE {
 		match self {
 			| Self::Unspecified => dxgi::DXGI_GPU_PREFERENCE_UNSPECIFIED,
@@ -33,26 +25,15 @@ impl AdapterKind {
 	}
 }
 
-/// Context
-///
-/// A wrapper for device, context and resources.
 pub struct Context {
-	/// D3D11 device
 	device: d3d11::ID3D11Device5,
-	/// D3D11 device context
 	cmd_list: d3d11::ID3D11DeviceContext4,
-	/// Render Targe tView derived from back buffer
 	framebuffer_rtv: Option<d3d11::ID3D11RenderTargetView>,
-
-	/// Time value for animations etc
-	time: f32,
-	/// Timer tracks the time elapsed between frames
-	timer: Timer,
-
-	/// DXGI factory
 	factory: dxgi::IDXGIFactory7,
-	/// DXGI swap chain
 	swap_chain: Option<dxgi::IDXGISwapChain3>,
+
+	time: f32,
+	timer: Timer,
 }
 
 impl core::default::Default for Context {
@@ -62,8 +43,7 @@ impl core::default::Default for Context {
 }
 
 impl Context {
-	/// Constructor
-	pub(crate) fn new() -> Self {
+	pub fn new() -> Self {
 		let factory: dxgi::IDXGIFactory7 = unsafe {
 			dxgi::CreateDXGIFactory2(dxgi::DXGI_CREATE_FACTORY_DEBUG)
 				.expect("failed to create dxgi factory")
@@ -115,7 +95,7 @@ impl Context {
 		}
 	}
 
-	pub(crate) fn set_swap_chain(&mut self, hwnd: HWND) -> Result<(), windows::core::Error> {
+	pub fn set_swap_chain(&mut self, hwnd: HWND) -> Result<(), windows::core::Error> {
 		let swap_chain: dxgi::IDXGISwapChain1 = unsafe {
 			self.factory.CreateSwapChainForHwnd(
 				&self.device,
@@ -123,7 +103,7 @@ impl Context {
 				&dxgi::DXGI_SWAP_CHAIN_DESC1 {
 					Width: 0,
 					Height: 0,
-					Format: dxgi::Common::DXGI_FORMAT_B8G8R8A8_UNORM,
+					Format: dxgi::Common::DXGI_FORMAT_R8G8B8A8_UNORM,
 					SampleDesc: dxgi::Common::DXGI_SAMPLE_DESC {
 						Count: 1,
 						Quality: 0,
@@ -153,10 +133,7 @@ impl Context {
 		return Ok(());
 	}
 
-	pub(crate) fn resize_buffers(&mut self, x: f32, y: f32) -> Result<(), windows::core::Error> {
-		self.framebuffer_rtv.take();
-		unsafe { self.cmd_list.Flush() };
-
+	pub fn resize_buffers(&mut self, x: f32, y: f32) -> Result<(), windows::core::Error> {
 		let Some(swap_chain) = &mut self.swap_chain else {
 			return Err(windows::core::Error::new(
 				windows::core::HRESULT(-1),
@@ -164,7 +141,11 @@ impl Context {
 			));
 		};
 
+		self.framebuffer_rtv.take();
+
 		unsafe {
+			self.cmd_list.Flush();
+
 			swap_chain.ResizeBuffers(
 				0,
 				0,
@@ -188,12 +169,11 @@ impl Context {
 		return Ok(());
 	}
 
-	pub(crate) fn present(&mut self) -> Result<(), windows::core::Error> {
+	pub fn present(&mut self) -> Result<(), windows::core::Error> {
 		self.timer.update();
 		self.time += self.timer.delta.as_secs_f32();
 
 		let rgba: [f32; 4] =
-
 			hsla_to_rgba(&[self.time * std::f32::consts::PI * 40.0, 0.4, 0.7, 1.0]);
 		let Some(swap_chain) = &self.swap_chain else {
 			return Err(windows::core::Error::new(

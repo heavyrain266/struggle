@@ -14,13 +14,15 @@ opt-level = 3
 
 [target.'cfg(all())']
 rustflags = [
+  # instruction sets
+  "-Ctarget-cpu=native",
+
   # nightly
   "-Zunstable-options",
   "-Zshare-generics=y",
-  "-Ctarget-cpu=native",
   "-Zthreads=16",
 
-  # stable
+  # lints
   "-Wclippy::all",
   "-Fdeprecated",
   "-Fredundant-imports",

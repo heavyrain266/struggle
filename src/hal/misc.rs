@@ -61,13 +61,14 @@ pub fn compile(file: &HSTRING, kind: &ShaderKind) -> Result<d3d::ID3DBlob, windo
 	}
 }
 
+#[inline(always)]
 pub fn framebuffer_rtv(
 	device: &d3d11::ID3D11Device, swap_chain: &dxgi::IDXGISwapChain1,
 ) -> Result<d3d11::ID3D11RenderTargetView, windows::core::Error> {
 	let texture: d3d11::ID3D11Texture2D =
 		unsafe { swap_chain.GetBuffer::<d3d11::ID3D11Texture2D>(0)? };
 	let desc: d3d11::D3D11_RENDER_TARGET_VIEW_DESC = d3d11::D3D11_RENDER_TARGET_VIEW_DESC {
-		Format: dxgi::Common::DXGI_FORMAT_B8G8R8A8_UNORM_SRGB,
+		Format: dxgi::Common::DXGI_FORMAT_R8G8B8A8_UNORM_SRGB,
 		ViewDimension: d3d11::D3D11_RTV_DIMENSION_TEXTURE2D,
 		..Default::default()
 	};
@@ -78,6 +79,7 @@ pub fn framebuffer_rtv(
 	return Ok(rt_view.unwrap());
 }
 
+#[inline(always)]
 pub fn select_adapter(
 	factory: &dxgi::IDXGIFactory7, prefer: &super::context::AdapterKind,
 ) -> Result<dxgi::IDXGIAdapter4, windows::core::Error> {
@@ -98,15 +100,16 @@ pub fn select_adapter(
 	unsafe { factory.EnumWarpAdapter() }
 }
 
-// NOTE: should I consider simd?
+#[inline(always)]
 pub fn hsla_to_rgba(hsla: &[f32; 4]) -> [f32; 4] {
-	let (hue, saturation, lightness): (f32, f32, f32) = (
+	let (hue, saturation, lightness, alpha): (f32, f32, f32, f32) = (
 		hsla[0].rem_euclid(360.0),
 		hsla[1].clamp(0.0, 1.0),
 		hsla[2].clamp(0.0, 1.0),
+		hsla[3].clamp(0.0, 1.0),
 	);
 
-	let chroma: f32 = (1.0 - 2.0f32.mul_add(lightness, -1.0)) * saturation;
+	let chroma: f32 = ((1.0 - 2.0f32.mul_add(lightness, -1.0)) * saturation).clamp(0.0, 1.0);
 	let imval: f32 = chroma * (1.0 - ((hue / 60.0).rem_euclid(2.0) - 1.0).abs());
 	let offset: f32 = lightness - chroma / 2.0;
 
@@ -119,5 +122,5 @@ pub fn hsla_to_rgba(hsla: &[f32; 4]) -> [f32; 4] {
 		| _ => (chroma, 0.0, imval),
 	};
 
-	return [red + offset, green + offset, blue + offset, hsla[3]];
+	[red + offset, green + offset, blue + offset, alpha]
 }

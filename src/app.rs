@@ -14,14 +14,9 @@ use winit::{
 
 use crate::hal::context::Context;
 
-/// DirectX 11 Test
-///
-/// Encapsulates the components for testing D3D11 rendering
 #[derive(Default)]
 pub struct Struggle {
-	/// A graphics adapter used for rendering.
 	context: Context,
-	/// An optional window for rendering.
 	window: Option<Window>,
 }
 
@@ -64,7 +59,7 @@ impl ApplicationHandler for Struggle {
 			.set_swap_chain(windows::Win32::Foundation::HWND(
 				handle.hwnd.get() as *mut std::ffi::c_void
 			))
-			.expect("failed to create swapchain");
+			.expect("failed to create swap chain");
 
 		self.window = Some(window);
 	}
@@ -78,19 +73,19 @@ impl ApplicationHandler for Struggle {
 
 		match event {
 			| WindowEvent::CloseRequested => event_loop.exit(),
-			| WindowEvent::Resized(size) => {
-				let lsize: LogicalSize<f32> = size.to_logical::<f32>(window.scale_factor());
-
-				if lsize.width != 0.0 && lsize.height != 0.0 {
-					self.context
-						.resize_buffers(lsize.width, lsize.height)
-						.expect("failed to resize swap chain buffers");
-				}
+			| WindowEvent::RedrawRequested => {
+				self.context.present().expect("failed to present frames");
 
 				window.request_redraw();
 			}
-			| WindowEvent::RedrawRequested => {
-				self.context.present().expect("failed to present frames");
+			| WindowEvent::Resized(phys) => {
+				let size: LogicalSize<f32> = phys.to_logical::<f32>(window.scale_factor());
+
+				if size.width != 0.0 && size.height != 0.0 {
+					self.context
+						.resize_buffers(size.width, size.height)
+						.expect("failed to resize swap chain buffers");
+				}
 
 				window.request_redraw();
 			}
