@@ -74,7 +74,7 @@ impl ApplicationHandler for Struggle {
 		match event {
 			| WindowEvent::CloseRequested => event_loop.exit(),
 			| WindowEvent::RedrawRequested => {
-				self.context.present().expect("failed to present frames");
+				unsafe { self.context.present().expect("failed to present frames") };
 
 				window.request_redraw();
 			}
@@ -82,9 +82,9 @@ impl ApplicationHandler for Struggle {
 				let size: LogicalSize<f32> = phys.to_logical::<f32>(window.scale_factor());
 
 				if size.width != 0.0 && size.height != 0.0 {
-					self.context
+					unsafe { self.context
 						.resize_buffers(size.width, size.height)
-						.expect("failed to resize swap chain buffers");
+						.expect("failed to resize swap chain buffers") };
 				}
 
 				window.request_redraw();

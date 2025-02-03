@@ -11,7 +11,9 @@ pub enum ShaderKind {
 	Vertex,
 }
 
-pub fn compile(file: &HSTRING, kind: &ShaderKind) -> Result<d3d::ID3DBlob, windows::core::Error> {
+pub unsafe fn compile(
+	file: &HSTRING, kind: &ShaderKind,
+) -> Result<d3d::ID3DBlob, windows::core::Error> {
 	let flags: u32 = if cfg!(debug_assertions) {
 		fxc::D3DCOMPILE_DEBUG | fxc::D3DCOMPILE_SKIP_OPTIMIZATION
 	} else {
@@ -62,25 +64,30 @@ pub fn compile(file: &HSTRING, kind: &ShaderKind) -> Result<d3d::ID3DBlob, windo
 }
 
 #[inline(always)]
-pub fn framebuffer_rtv(
+pub unsafe fn framebuffer_rtv(
 	device: &d3d11::ID3D11Device, swap_chain: &dxgi::IDXGISwapChain1,
 ) -> Result<d3d11::ID3D11RenderTargetView, windows::core::Error> {
-	let texture: d3d11::ID3D11Texture2D =
-		unsafe { swap_chain.GetBuffer::<d3d11::ID3D11Texture2D>(0)? };
-	let desc: d3d11::D3D11_RENDER_TARGET_VIEW_DESC = d3d11::D3D11_RENDER_TARGET_VIEW_DESC {
-		Format: dxgi::Common::DXGI_FORMAT_R8G8B8A8_UNORM_SRGB,
-		ViewDimension: d3d11::D3D11_RTV_DIMENSION_TEXTURE2D,
-		..Default::default()
-	};
 	let mut rt_view: Option<d3d11::ID3D11RenderTargetView> = None;
 
-	unsafe { device.CreateRenderTargetView(&texture, Some(&desc), Some(&mut rt_view))? };
+	unsafe {
+		device.CreateRenderTargetView(
+			&swap_chain.GetBuffer::<d3d11::ID3D11Texture2D>(0)?,
+			Some(
+				&(d3d11::D3D11_RENDER_TARGET_VIEW_DESC {
+					Format: dxgi::Common::DXGI_FORMAT_R8G8B8A8_UNORM_SRGB,
+					ViewDimension: d3d11::D3D11_RTV_DIMENSION_TEXTURE2D,
+					..Default::default()
+				}),
+			),
+			Some(&mut rt_view),
+		)?
+	};
 
 	return Ok(rt_view.unwrap());
 }
 
 #[inline(always)]
-pub fn select_adapter(
+pub unsafe fn select_adapter(
 	factory: &dxgi::IDXGIFactory7, prefer: &super::context::AdapterKind,
 ) -> Result<dxgi::IDXGIAdapter4, windows::core::Error> {
 	for i in 0.. {

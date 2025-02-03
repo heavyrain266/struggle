@@ -38,20 +38,21 @@ pub struct Context {
 
 impl core::default::Default for Context {
 	fn default() -> Self {
-		Self::new()
+		unsafe { Self::new() }
 	}
 }
 
 impl Context {
-	pub fn new() -> Self {
+	pub unsafe fn new() -> Self {
 		let factory: dxgi::IDXGIFactory7 = unsafe {
 			dxgi::CreateDXGIFactory2(dxgi::DXGI_CREATE_FACTORY_DEBUG)
 				.expect("failed to create dxgi factory")
 		};
 
-		let adapter: dxgi::IDXGIAdapter4 =
+		let adapter: dxgi::IDXGIAdapter4 = unsafe {
 			misc::select_adapter(&factory, &AdapterKind::HighPerformance)
-				.expect("failed to select adapter");
+				.expect("failed to select adapter")
+		};
 
 		let mut device: Option<d3d11::ID3D11Device> = None;
 		let mut context: Option<d3d11::ID3D11DeviceContext> = None;
@@ -125,15 +126,15 @@ impl Context {
 		unsafe {
 			self.factory
 				.MakeWindowAssociation(hwnd, dxgi::DXGI_MWA_NO_ALT_ENTER)?;
+			self.framebuffer_rtv = Some(misc::framebuffer_rtv(&self.device, &swap_chain)?);
 		}
 
-		self.framebuffer_rtv = Some(misc::framebuffer_rtv(&self.device, &swap_chain)?);
 		self.swap_chain = Some(swap_chain.cast()?);
 
 		return Ok(());
 	}
 
-	pub fn resize_buffers(&mut self, x: f32, y: f32) -> Result<(), windows::core::Error> {
+	pub unsafe fn resize_buffers(&mut self, x: f32, y: f32) -> Result<(), windows::core::Error> {
 		let Some(swap_chain) = &mut self.swap_chain else {
 			return Err(windows::core::Error::new(
 				windows::core::HRESULT(-1),
@@ -169,7 +170,7 @@ impl Context {
 		return Ok(());
 	}
 
-	pub fn present(&mut self) -> Result<(), windows::core::Error> {
+	pub unsafe fn present(&mut self) -> Result<(), windows::core::Error> {
 		self.timer.update();
 		self.time += self.timer.delta.as_secs_f32();
 
