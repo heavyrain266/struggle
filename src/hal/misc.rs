@@ -22,6 +22,7 @@ pub unsafe fn compile(
 
 	let mut pixel: Option<d3d::ID3DBlob> = None;
 	let mut vertex: Option<d3d::ID3DBlob> = None;
+	let mut error: Option<d3d::ID3DBlob> = None;
 
 	match kind {
 		| ShaderKind::Pixel => {
@@ -35,7 +36,7 @@ pub unsafe fn compile(
 					flags,
 					0,
 					&mut pixel,
-					None,
+					Some(&mut error),
 				)
 				.map(|()| pixel.expect("failed to map pixel shader"))?
 			};
@@ -53,7 +54,7 @@ pub unsafe fn compile(
 					flags,
 					0,
 					&mut vertex,
-					None,
+					Some(&mut error),
 				)
 				.map(|()| vertex.expect("failed to map vertex shader"))?
 			};
@@ -63,7 +64,6 @@ pub unsafe fn compile(
 	}
 }
 
-#[inline(always)]
 pub unsafe fn framebuffer_rtv(
 	device: &d3d11::ID3D11Device, swap_chain: &dxgi::IDXGISwapChain1,
 ) -> Result<d3d11::ID3D11RenderTargetView, windows::core::Error> {
@@ -80,19 +80,18 @@ pub unsafe fn framebuffer_rtv(
 				}),
 			),
 			Some(&mut rt_view),
-		)?
-	};
+		)?;
+	}
 
 	return Ok(rt_view.unwrap());
 }
 
-#[inline(always)]
 pub unsafe fn select_adapter(
-	factory: &dxgi::IDXGIFactory7, prefer: &super::context::AdapterKind,
+	factory: &dxgi::IDXGIFactory7, kind: &super::cx::AdapterKind,
 ) -> Result<dxgi::IDXGIAdapter4, windows::core::Error> {
 	for i in 0.. {
 		let adapter: dxgi::IDXGIAdapter4 =
-			unsafe { factory.EnumAdapterByGpuPreference(i, prefer.map_to_dxgi()) }?;
+			unsafe { factory.EnumAdapterByGpuPreference(i, kind.map_to_dxgi()) }?;
 
 		if unsafe { adapter.GetDesc3() }?.Flags & dxgi::DXGI_ADAPTER_FLAG3_SOFTWARE
 			!= dxgi::DXGI_ADAPTER_FLAG3_NONE
@@ -107,7 +106,6 @@ pub unsafe fn select_adapter(
 	unsafe { factory.EnumWarpAdapter() }
 }
 
-#[inline(always)]
 pub fn hsla_to_rgba(hsla: &[f32; 4]) -> [f32; 4] {
 	let (hue, saturation, lightness, alpha): (f32, f32, f32, f32) = (
 		hsla[0].rem_euclid(360.0),
@@ -120,6 +118,8 @@ pub fn hsla_to_rgba(hsla: &[f32; 4]) -> [f32; 4] {
 	let imval: f32 = chroma * (1.0 - ((hue / 60.0).rem_euclid(2.0) - 1.0).abs());
 	let offset: f32 = lightness - chroma / 2.0;
 
+	#[allow(clippy::cast_sign_loss)]
+	#[allow(clippy::cast_possible_truncation)]
 	let (red, green, blue): (f32, f32, f32) = match (hue as u32) / 60 {
 		| 0 => (chroma, imval, 0.0),
 		| 1 => (imval, chroma, 0.0),

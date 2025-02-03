@@ -7,7 +7,6 @@ struct PixelInput
 PixelInput vs_main(float4 position : POSITION, float4 color : COLOR)
 {
     PixelInput result;
-
     result.position = position;
     result.color = color;
 

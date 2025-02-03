@@ -2,9 +2,9 @@
 //!
 //! A set of modules used to abstract d3d11 calls away from application
 
-mod buffers;
+mod shared;
 
-pub mod context;
+pub mod cx;
 pub mod misc;
 
 use windows::{

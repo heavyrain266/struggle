@@ -2,10 +2,9 @@
 //!
 //! A module used to select device, setup swap chain and present frames to the window.
 
-use super::{
-	BOOL, HMODULE, HWND, Interface, d3d, d3d11, dxgi,
-	misc::{self, hsla_to_rgba},
-};
+use windows::core::HSTRING;
+
+use super::{BOOL, HMODULE, HWND, Interface, d3d, d3d11, dxgi, misc, shared};
 use crate::timer::Timer;
 
 #[allow(unused)]
@@ -28,9 +27,13 @@ impl AdapterKind {
 pub struct Context {
 	device: d3d11::ID3D11Device5,
 	cmd_list: d3d11::ID3D11DeviceContext4,
-	framebuffer_rtv: Option<d3d11::ID3D11RenderTargetView>,
+	backbuffer_rt_view: Option<d3d11::ID3D11RenderTargetView>,
 	factory: dxgi::IDXGIFactory7,
 	swap_chain: Option<dxgi::IDXGISwapChain3>,
+
+	input_layout: d3d11::ID3D11InputLayout,
+	pixel_shader: d3d11::ID3D11PixelShader,
+	vertex_shader: d3d11::ID3D11VertexShader,
 
 	time: f32,
 	timer: Timer,
@@ -43,6 +46,27 @@ impl core::default::Default for Context {
 }
 
 impl Context {
+	const INPUT_ELEMENTS_DESC: [d3d11::D3D11_INPUT_ELEMENT_DESC; 2] = [
+		d3d11::D3D11_INPUT_ELEMENT_DESC {
+			SemanticName: windows::core::s!("POSITION"),
+			SemanticIndex: 0,
+			Format: dxgi::Common::DXGI_FORMAT_R32G32_FLOAT,
+			InputSlot: 0,
+			AlignedByteOffset: std::mem::offset_of!(shared::Vertex, position) as u32,
+			InputSlotClass: d3d11::D3D11_INPUT_PER_VERTEX_DATA,
+			InstanceDataStepRate: 0,
+		},
+		d3d11::D3D11_INPUT_ELEMENT_DESC {
+			SemanticName: windows::core::s!("COLOR"),
+			SemanticIndex: 0,
+			Format: dxgi::Common::DXGI_FORMAT_R32G32B32A32_FLOAT,
+			InputSlot: 0,
+			AlignedByteOffset: std::mem::offset_of!(shared::Vertex, color) as u32,
+			InputSlotClass: d3d11::D3D11_INPUT_PER_VERTEX_DATA,
+			InstanceDataStepRate: 0,
+		},
+	];
+
 	pub unsafe fn new() -> Self {
 		let factory: dxgi::IDXGIFactory7 = unsafe {
 			dxgi::CreateDXGIFactory2(dxgi::DXGI_CREATE_FACTORY_DEBUG)
@@ -85,11 +109,70 @@ impl Context {
 			.cast()
 			.expect("failed to cast a ID3D11DeviceContext to ID3D11DeviceContext4");
 
+		let shaders: HSTRING = std::path::Path::new(&format!(
+			"{}/redist/shaders/shaders.hlsl",
+			env!("CARGO_MANIFEST_DIR")
+		))
+		.to_str()
+		.unwrap()
+		.into();
+
+		let vs_blob: d3d::ID3DBlob = unsafe {
+			misc::compile(&shaders, &misc::ShaderKind::Vertex)
+				.expect("failed to compile vertex shader")
+		};
+		let ps_blob: d3d::ID3DBlob = unsafe {
+			misc::compile(&shaders, &misc::ShaderKind::Pixel)
+				.expect("failed to compile pixel shader")
+		};
+
+		let mut vs: Option<d3d11::ID3D11VertexShader> = None;
+		let mut ps: Option<d3d11::ID3D11PixelShader> = None;
+
+		let mut input_layout: Option<d3d11::ID3D11InputLayout> = None;
+
+		unsafe {
+			device
+				.CreateVertexShader(
+					std::slice::from_raw_parts(
+						vs_blob.GetBufferPointer() as *const u8,
+						vs_blob.GetBufferSize(),
+					),
+					None,
+					Some(&mut vs),
+				)
+				.expect("failed to create vertex shader");
+			device
+				.CreatePixelShader(
+					std::slice::from_raw_parts(
+						ps_blob.GetBufferPointer() as *const u8,
+						ps_blob.GetBufferSize(),
+					),
+					None,
+					Some(&mut ps),
+				)
+				.expect("failed to create pixel shader");
+
+			device
+				.CreateInputLayout(
+					&Self::INPUT_ELEMENTS_DESC,
+					std::slice::from_raw_parts(
+						vs_blob.GetBufferPointer() as *const u8,
+						vs_blob.GetBufferSize(),
+					),
+					Some(&mut input_layout),
+				)
+				.expect("failed to create input layout");
+		}
+
 		Self {
 			factory,
 			device,
 			cmd_list: context,
-			framebuffer_rtv: None,
+			backbuffer_rt_view: None,
+			input_layout: input_layout.unwrap(),
+			vertex_shader: vs.unwrap(),
+			pixel_shader: ps.unwrap(),
 			time: 0.0,
 			timer: Timer::new(),
 			swap_chain: None,
@@ -126,7 +209,7 @@ impl Context {
 		unsafe {
 			self.factory
 				.MakeWindowAssociation(hwnd, dxgi::DXGI_MWA_NO_ALT_ENTER)?;
-			self.framebuffer_rtv = Some(misc::framebuffer_rtv(&self.device, &swap_chain)?);
+			self.backbuffer_rt_view = Some(misc::framebuffer_rtv(&self.device, &swap_chain)?);
 		}
 
 		self.swap_chain = Some(swap_chain.cast()?);
@@ -142,7 +225,7 @@ impl Context {
 			));
 		};
 
-		self.framebuffer_rtv.take();
+		self.backbuffer_rt_view.take();
 
 		unsafe {
 			self.cmd_list.Flush();
@@ -163,7 +246,7 @@ impl Context {
 				MinDepth: 0.0,
 				MaxDepth: 1.0,
 			}]));
-			self.framebuffer_rtv
+			self.backbuffer_rt_view
 				.replace(misc::framebuffer_rtv(&self.device, swap_chain)?);
 		}
 
@@ -175,32 +258,55 @@ impl Context {
 		self.time += self.timer.delta.as_secs_f32();
 
 		let rgba: [f32; 4] =
-			hsla_to_rgba(&[self.time * std::f32::consts::PI * 40.0, 0.4, 0.7, 1.0]);
+			misc::hsla_to_rgba(&[self.time * std::f32::consts::PI * 40.0, 0.4, 0.7, 1.0]);
 		let Some(swap_chain) = &self.swap_chain else {
 			return Err(windows::core::Error::new(
 				windows::core::HRESULT(-1),
 				"swap chain wasn't created",
 			));
 		};
-		let Some(rtv) = &self.framebuffer_rtv else {
+		let Some(rtv) = &self.backbuffer_rt_view else {
 			return Err(windows::core::Error::new(
 				windows::core::HRESULT(-1),
 				"back buffer RTV wasn't created",
 			));
 		};
 
+		let vertices: [shared::Vertex; 3] = [
+			shared::Vertex::new([0.0, 0.5, 0.0], [1.0, 0.0, 0.0, 1.0]),
+			shared::Vertex::new([0.5, -0.5, 0.0], [0.0, 1.0, 0.0, 1.0]),
+			shared::Vertex::new([-0.5, -0.5, 0.0], [0.0, 0.0, 1.0, 1.0]),
+		];
+		let vertex_buffer: d3d11::ID3D11Buffer = shared::buffer(&vertices, 1, &self.device)?;
+		let index_buffer: d3d11::ID3D11Buffer = shared::buffer(&[0, 1, 2], 2, &self.device)?;
+
 		unsafe {
 			self.cmd_list
-				.OMSetRenderTargets(Some(&[Some(rtv.clone())]), None);
+				.IASetPrimitiveTopology(d3d::D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+			self.cmd_list.IASetInputLayout(&self.input_layout);
+			self.cmd_list.IASetVertexBuffers(
+				0,
+				1,
+				Some(&Some(vertex_buffer)),
+				Some(&(std::mem::size_of::<shared::Vertex>() as u32)),
+				Some(&0),
+			);
+			self.cmd_list
+				.IASetIndexBuffer(&index_buffer, dxgi::Common::DXGI_FORMAT_R32_UINT, 0);
+			self.cmd_list.VSSetShader(&self.vertex_shader, None);
+			self.cmd_list.PSSetShader(&self.pixel_shader, None);
 			self.cmd_list.RSSetViewports(Some(&[d3d11::D3D11_VIEWPORT {
 				TopLeftX: 0.0,
 				TopLeftY: 0.0,
-				Width: 0.0,
-				Height: 0.0,
+				Width: 800.0,
+				Height: 600.0,
 				MinDepth: 0.0,
 				MaxDepth: 1.0,
 			}]));
+			self.cmd_list
+				.OMSetRenderTargets(Some(&[Some(rtv.clone())]), None);
 			self.cmd_list.ClearRenderTargetView(rtv, &rgba);
+			self.cmd_list.DrawIndexed(3, 0, 0);
 
 			swap_chain
 				.Present1(

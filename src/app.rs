@@ -12,7 +12,7 @@ use winit::{
 	window::{Window, WindowAttributes, WindowId},
 };
 
-use crate::hal::context::Context;
+use crate::hal::cx::Context;
 
 #[derive(Default)]
 pub struct Struggle {
@@ -82,9 +82,11 @@ impl ApplicationHandler for Struggle {
 				let size: LogicalSize<f32> = phys.to_logical::<f32>(window.scale_factor());
 
 				if size.width != 0.0 && size.height != 0.0 {
-					unsafe { self.context
-						.resize_buffers(size.width, size.height)
-						.expect("failed to resize swap chain buffers") };
+					unsafe {
+						self.context
+							.resize_buffers(size.width, size.height)
+							.expect("failed to resize swap chain buffers");
+					}
 				}
 
 				window.request_redraw();
