@@ -46,27 +46,6 @@ impl core::default::Default for Context {
 }
 
 impl Context {
-	const INPUT_ELEMENTS_DESC: [d3d11::D3D11_INPUT_ELEMENT_DESC; 2] = [
-		d3d11::D3D11_INPUT_ELEMENT_DESC {
-			SemanticName: windows::core::s!("POSITION"),
-			SemanticIndex: 0,
-			Format: dxgi::Common::DXGI_FORMAT_R32G32_FLOAT,
-			InputSlot: 0,
-			AlignedByteOffset: std::mem::offset_of!(shared::Vertex, position) as u32,
-			InputSlotClass: d3d11::D3D11_INPUT_PER_VERTEX_DATA,
-			InstanceDataStepRate: 0,
-		},
-		d3d11::D3D11_INPUT_ELEMENT_DESC {
-			SemanticName: windows::core::s!("COLOR"),
-			SemanticIndex: 0,
-			Format: dxgi::Common::DXGI_FORMAT_R32G32B32A32_FLOAT,
-			InputSlot: 0,
-			AlignedByteOffset: std::mem::offset_of!(shared::Vertex, color) as u32,
-			InputSlotClass: d3d11::D3D11_INPUT_PER_VERTEX_DATA,
-			InstanceDataStepRate: 0,
-		},
-	];
-
 	pub unsafe fn new() -> Self {
 		let factory: dxgi::IDXGIFactory7 = unsafe {
 			dxgi::CreateDXGIFactory2(dxgi::DXGI_CREATE_FACTORY_DEBUG)
@@ -155,7 +134,27 @@ impl Context {
 
 			device
 				.CreateInputLayout(
-					&Self::INPUT_ELEMENTS_DESC,
+					&[
+						d3d11::D3D11_INPUT_ELEMENT_DESC {
+							SemanticName: windows::core::s!("POSITION"),
+							SemanticIndex: 0,
+							Format: dxgi::Common::DXGI_FORMAT_R32G32_FLOAT,
+							InputSlot: 0,
+							AlignedByteOffset: std::mem::offset_of!(shared::Vertex, position)
+								as u32,
+							InputSlotClass: d3d11::D3D11_INPUT_PER_VERTEX_DATA,
+							InstanceDataStepRate: 0,
+						},
+						d3d11::D3D11_INPUT_ELEMENT_DESC {
+							SemanticName: windows::core::s!("COLOR"),
+							SemanticIndex: 0,
+							Format: dxgi::Common::DXGI_FORMAT_R32G32B32A32_FLOAT,
+							InputSlot: 0,
+							AlignedByteOffset: std::mem::offset_of!(shared::Vertex, color) as u32,
+							InputSlotClass: d3d11::D3D11_INPUT_PER_VERTEX_DATA,
+							InstanceDataStepRate: 0,
+						},
+					],
 					std::slice::from_raw_parts(
 						vs_blob.GetBufferPointer() as *const u8,
 						vs_blob.GetBufferSize(),
@@ -253,7 +252,7 @@ impl Context {
 		return Ok(());
 	}
 
-	pub unsafe fn present(&mut self) -> Result<(), windows::core::Error> {
+	pub unsafe fn present(&mut self, x: f32, y: f32) -> Result<(), windows::core::Error> {
 		self.timer.update();
 		self.time += self.timer.delta.as_secs_f32();
 
@@ -298,8 +297,8 @@ impl Context {
 			self.cmd_list.RSSetViewports(Some(&[d3d11::D3D11_VIEWPORT {
 				TopLeftX: 0.0,
 				TopLeftY: 0.0,
-				Width: 800.0,
-				Height: 600.0,
+				Width: x,
+				Height: y,
 				MinDepth: 0.0,
 				MaxDepth: 1.0,
 			}]));

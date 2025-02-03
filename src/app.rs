@@ -74,7 +74,14 @@ impl ApplicationHandler for Struggle {
 		match event {
 			| WindowEvent::CloseRequested => event_loop.exit(),
 			| WindowEvent::RedrawRequested => {
-				unsafe { self.context.present().expect("failed to present frames") };
+				let size: LogicalSize<f32> =
+					window.inner_size().to_logical::<f32>(window.scale_factor());
+
+				unsafe {
+					self.context
+						.present(size.width, size.height)
+						.expect("failed to present frames");
+				}
 
 				window.request_redraw();
 			}
