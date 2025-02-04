@@ -2,7 +2,7 @@
 //!
 //! A module used to select device, setup swap chain and present frames to the window.
 
-use windows::core::HSTRING;
+use windows::{Win32::Foundation::RECT, core::HSTRING};
 
 use super::{BOOL, HMODULE, HWND, Interface, d3d, d3d11, dxgi, misc, shared};
 use crate::timer::Timer;
@@ -34,6 +34,7 @@ pub struct Context {
 	input_layout: d3d11::ID3D11InputLayout,
 	pixel_shader: d3d11::ID3D11PixelShader,
 	vertex_shader: d3d11::ID3D11VertexShader,
+	raster_state: d3d11::ID3D11RasterizerState2,
 
 	time: f32,
 	timer: Timer,
@@ -109,6 +110,7 @@ impl Context {
 		let mut ps: Option<d3d11::ID3D11PixelShader> = None;
 
 		let mut input_layout: Option<d3d11::ID3D11InputLayout> = None;
+		let mut raster_state: Option<d3d11::ID3D11RasterizerState2> = None;
 
 		unsafe {
 			device
@@ -162,6 +164,25 @@ impl Context {
 					Some(&mut input_layout),
 				)
 				.expect("failed to create input layout");
+
+			device
+				.CreateRasterizerState2(
+					&d3d11::D3D11_RASTERIZER_DESC2 {
+						FillMode: d3d11::D3D11_FILL_SOLID,
+						CullMode: d3d11::D3D11_CULL_NONE,
+						FrontCounterClockwise: BOOL::from(false),
+						DepthBias: 0,
+						DepthBiasClamp: 0.0,
+						SlopeScaledDepthBias: 0.0,
+						DepthClipEnable: BOOL::from(false),
+						ScissorEnable: BOOL::from(true),
+						MultisampleEnable: BOOL::from(false),
+						AntialiasedLineEnable: BOOL::from(false),
+						..Default::default()
+					},
+					Some(&mut raster_state),
+				)
+				.expect("failed to create rasterizer state");
 		}
 
 		Self {
@@ -172,6 +193,7 @@ impl Context {
 			input_layout: input_layout.unwrap(),
 			vertex_shader: vs.unwrap(),
 			pixel_shader: ps.unwrap(),
+			raster_state: raster_state.unwrap(),
 			time: 0.0,
 			timer: Timer::new(),
 			swap_chain: None,
@@ -294,6 +316,7 @@ impl Context {
 				.IASetIndexBuffer(&index_buffer, dxgi::Common::DXGI_FORMAT_R32_UINT, 0);
 			self.cmd_list.VSSetShader(&self.vertex_shader, None);
 			self.cmd_list.PSSetShader(&self.pixel_shader, None);
+			self.cmd_list.RSSetState(&self.raster_state);
 			self.cmd_list.RSSetViewports(Some(&[d3d11::D3D11_VIEWPORT {
 				TopLeftX: 0.0,
 				TopLeftY: 0.0,
@@ -302,9 +325,16 @@ impl Context {
 				MinDepth: 0.0,
 				MaxDepth: 1.0,
 			}]));
+			self.cmd_list.RSSetScissorRects(Some(&[RECT {
+				left: 0,
+				top: 0,
+				right: x as i32,
+				bottom: y as i32,
+			}]));
 			self.cmd_list
 				.OMSetRenderTargets(Some(&[Some(rtv.clone())]), None);
-			self.cmd_list.ClearRenderTargetView(rtv, &[0.0, 0.0, 0.0, 1.0]);
+			self.cmd_list
+				.ClearRenderTargetView(rtv, &[0.0, 0.0, 0.0, 1.0]);
 			self.cmd_list.DrawIndexed(4, 0, 0);
 
 			swap_chain
