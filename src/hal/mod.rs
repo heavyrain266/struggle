@@ -9,7 +9,7 @@ pub mod misc;
 
 use windows::{
 	Win32::{
-		Foundation::{BOOL, HMODULE, HWND},
+		Foundation::{BOOL, HMODULE, HWND, RECT},
 		Graphics::{
 			Direct3D::{self as d3d, Fxc as fxc},
 			Direct3D11 as d3d11, Dxgi as dxgi,

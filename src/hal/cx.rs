@@ -2,9 +2,7 @@
 //!
 //! A module used to select device, setup swap chain and present frames to the window.
 
-use windows::{Win32::Foundation::RECT, core::HSTRING};
-
-use super::{BOOL, HMODULE, HWND, Interface, d3d, d3d11, dxgi, misc, shared};
+use super::{BOOL, HMODULE, HSTRING, HWND, Interface, RECT, d3d, d3d11, dxgi, misc, shared};
 use crate::timer::Timer;
 
 #[allow(unused)]
@@ -178,7 +176,8 @@ impl Context {
 						ScissorEnable: BOOL::from(true),
 						MultisampleEnable: BOOL::from(false),
 						AntialiasedLineEnable: BOOL::from(false),
-						..Default::default()
+						ForcedSampleCount: 1,
+						ConservativeRaster: d3d11::D3D11_CONSERVATIVE_RASTERIZATION_MODE_OFF,
 					},
 					Some(&mut raster_state),
 				)
@@ -315,7 +314,6 @@ impl Context {
 			self.cmd_list
 				.IASetIndexBuffer(&index_buffer, dxgi::Common::DXGI_FORMAT_R32_UINT, 0);
 			self.cmd_list.VSSetShader(&self.vertex_shader, None);
-			self.cmd_list.PSSetShader(&self.pixel_shader, None);
 			self.cmd_list.RSSetState(&self.raster_state);
 			self.cmd_list.RSSetViewports(Some(&[d3d11::D3D11_VIEWPORT {
 				TopLeftX: 0.0,
@@ -331,6 +329,7 @@ impl Context {
 				right: x as i32,
 				bottom: y as i32,
 			}]));
+			self.cmd_list.PSSetShader(&self.pixel_shader, None);
 			self.cmd_list
 				.OMSetRenderTargets(Some(&[Some(rtv.clone())]), None);
 			self.cmd_list
