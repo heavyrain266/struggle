@@ -272,12 +272,12 @@ impl Context {
 		};
 
 		let vertices: [shared::Vertex; 3] = [
-			shared::Vertex::new([0.0, 0.5, 0.0], [1.0, 0.0, 0.0, 1.0]),
-			shared::Vertex::new([0.5, -0.5, 0.0], [0.0, 1.0, 0.0, 1.0]),
-			shared::Vertex::new([-0.5, -0.5, 0.0], [0.0, 0.0, 1.0, 1.0]),
+			shared::Vertex::new([0.0, 0.5, 0.0], rgba),
+			shared::Vertex::new([0.5, -0.5, 0.0], rgba),
+			shared::Vertex::new([-0.5, -0.5, 0.0], rgba),
 		];
 		let vertex_buffer: d3d11::ID3D11Buffer = shared::buffer(&vertices, 1, &self.device)?;
-		let index_buffer: d3d11::ID3D11Buffer = shared::buffer(&[0, 1, 2], 2, &self.device)?;
+		let index_buffer: d3d11::ID3D11Buffer = shared::buffer(&[0, 1, 2, 0], 2, &self.device)?;
 
 		unsafe {
 			self.cmd_list
@@ -304,8 +304,8 @@ impl Context {
 			}]));
 			self.cmd_list
 				.OMSetRenderTargets(Some(&[Some(rtv.clone())]), None);
-			self.cmd_list.ClearRenderTargetView(rtv, &rgba);
-			self.cmd_list.DrawIndexed(3, 0, 0);
+			self.cmd_list.ClearRenderTargetView(rtv, &[0.0, 0.0, 0.0, 1.0]);
+			self.cmd_list.DrawIndexed(4, 0, 0);
 
 			swap_chain
 				.Present1(
