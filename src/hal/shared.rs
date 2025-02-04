@@ -18,7 +18,7 @@ impl Vertex {
 	}
 }
 
-pub fn buffer<T>(
+pub unsafe fn buffer<T>(
 	data: &[T], bind_flags: u32, device: &d3d11::ID3D11Device,
 ) -> Result<d3d11::ID3D11Buffer, windows::core::Error> {
 	let size: u32 = u32::try_from(std::mem::size_of_val(data))?;

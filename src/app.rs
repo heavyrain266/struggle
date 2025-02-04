@@ -16,7 +16,7 @@ use crate::hal::cx::Context;
 
 #[derive(Default)]
 pub struct Struggle {
-	context: Context,
+	context: Option<Context>,
 	window: Option<Window>,
 }
 
@@ -55,12 +55,11 @@ impl ApplicationHandler for Struggle {
 			panic!("expected a win32 window handle");
 		};
 
-		self.context
-			.set_swap_chain(windows::Win32::Foundation::HWND(
-				handle.hwnd.get() as *mut std::ffi::c_void
-			))
-			.expect("failed to create swap chain");
-
+		self.context = unsafe {
+			Some(Context::new(windows::Win32::Foundation::HWND(
+				handle.hwnd.get() as *mut std::ffi::c_void,
+			)))
+		};
 		self.window = Some(window);
 	}
 
@@ -70,16 +69,21 @@ impl ApplicationHandler for Struggle {
 		let Some(window) = &self.window else {
 			return;
 		};
+		let Some(context) = &mut self.context else {
+			return;
+		};
 
 		match event {
 			| WindowEvent::CloseRequested => event_loop.exit(),
 			| WindowEvent::RedrawRequested => {
 				let size: LogicalSize<f32> =
 					window.inner_size().to_logical::<f32>(window.scale_factor());
+				let scissor: LogicalSize<i32> =
+					window.inner_size().to_logical::<i32>(window.scale_factor());
 
 				unsafe {
-					self.context
-						.present(size.width, size.height)
+					context
+						.present(size.width, size.height, scissor)
 						.expect("failed to present frames");
 				}
 
@@ -87,11 +91,12 @@ impl ApplicationHandler for Struggle {
 			}
 			| WindowEvent::Resized(phys) => {
 				let size: LogicalSize<f32> = phys.to_logical::<f32>(window.scale_factor());
+				let scissor: LogicalSize<i32> = phys.to_logical::<i32>(window.scale_factor());
 
 				if size.width != 0.0 && size.height != 0.0 {
 					unsafe {
-						self.context
-							.resize_buffers(size.width, size.height)
+						context
+							.resize_buffers(size.width, size.height, scissor)
 							.expect("failed to resize swap chain buffers");
 					}
 				}

@@ -64,7 +64,7 @@ pub unsafe fn compile(
 	}
 }
 
-pub unsafe fn framebuffer_rtv(
+pub unsafe fn backbuffer_rt_view(
 	device: &d3d11::ID3D11Device, swap_chain: &dxgi::IDXGISwapChain1,
 ) -> Result<d3d11::ID3D11RenderTargetView, windows::core::Error> {
 	let mut rt_view: Option<d3d11::ID3D11RenderTargetView> = None;
@@ -87,7 +87,7 @@ pub unsafe fn framebuffer_rtv(
 }
 
 pub unsafe fn select_adapter(
-	factory: &dxgi::IDXGIFactory7, kind: &super::cx::AdapterKind,
+	factory: &dxgi::IDXGIFactory7, kind: &super::adapter::AdapterKind,
 ) -> Result<dxgi::IDXGIAdapter4, windows::core::Error> {
 	for i in 0.. {
 		let adapter: dxgi::IDXGIAdapter4 =
