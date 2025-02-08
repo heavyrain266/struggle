@@ -147,7 +147,7 @@ impl Context {
 	}
 
 	pub unsafe fn resize_buffers(
-		&mut self, x: f32, y: f32, scissor: winit::dpi::LogicalSize<i32>,
+		&mut self, viewport: winit::dpi::LogicalSize<f32>, scissor: winit::dpi::LogicalSize<i32>,
 	) -> Result<(), windows::core::Error> {
 		self.backbuffer_rt_view.take();
 
@@ -166,8 +166,8 @@ impl Context {
 				.RSSetViewports(Some(&[d3d11::D3D11_VIEWPORT {
 					TopLeftX: 0.0,
 					TopLeftY: 0.0,
-					Width: x,
-					Height: y,
+					Width: viewport.width,
+					Height: viewport.height,
 					MinDepth: 0.0,
 					MaxDepth: 1.0,
 				}]));
@@ -188,7 +188,7 @@ impl Context {
 	}
 
 	pub unsafe fn present(
-		&mut self, x: f32, y: f32, scissor: winit::dpi::LogicalSize<i32>,
+		&mut self, viewport: winit::dpi::LogicalSize<f32>, scissor: winit::dpi::LogicalSize<i32>,
 	) -> Result<(), windows::core::Error> {
 		self.timer.update();
 		self.time += self.timer.delta.as_secs_f32();
@@ -236,8 +236,8 @@ impl Context {
 				.RSSetViewports(Some(&[d3d11::D3D11_VIEWPORT {
 					TopLeftX: 0.0,
 					TopLeftY: 0.0,
-					Width: x,
-					Height: y,
+					Width: viewport.width,
+					Height: viewport.height,
 					MinDepth: 0.0,
 					MaxDepth: 1.0,
 				}]));

@@ -77,21 +77,21 @@ impl ApplicationHandler for Struggle {
 		match event {
 			| WindowEvent::CloseRequested => event_loop.exit(),
 			| WindowEvent::RedrawRequested => {
-				let size: LogicalSize<f32> =
+				let viewport: LogicalSize<f32> =
 					window.inner_size().to_logical::<f32>(window.scale_factor());
 				let scissor: LogicalSize<i32> =
 					window.inner_size().to_logical::<i32>(window.scale_factor());
 
 				unsafe {
 					context
-						.present(size.width, size.height, scissor)
+						.present(viewport, scissor)
 						.expect("failed to present frames");
 				}
 
 				window.request_redraw();
 			}
 			| WindowEvent::Resized(phys) => {
-				let size: LogicalSize<f32> = phys.to_logical::<f32>(window.scale_factor());
+				let viewport: LogicalSize<f32> = phys.to_logical::<f32>(window.scale_factor());
 				let scissor: LogicalSize<i32> = phys.to_logical::<i32>(window.scale_factor());
 
 				if !window.is_visible().unwrap() {
@@ -99,7 +99,7 @@ impl ApplicationHandler for Struggle {
 				} else {
 					unsafe {
 						context
-							.resize_buffers(size.width, size.height, scissor)
+							.resize_buffers(viewport, scissor)
 							.expect("failed to resize swap chain buffers");
 					}
 				}
