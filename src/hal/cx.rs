@@ -4,7 +4,7 @@
 
 use super::{
 	BOOL, HSTRING, HWND, RECT, adapter::Adapter, d3d, d3d11, dxgi, misc, shared,
-	swaochain::SwapChain,
+	swapchain::SwapChain,
 };
 use crate::timer::Timer;
 

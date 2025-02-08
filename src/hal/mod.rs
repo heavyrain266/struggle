@@ -4,7 +4,7 @@
 
 mod adapter;
 mod shared;
-mod swaochain;
+mod swapchain;
 
 pub mod cx;
 pub mod misc;

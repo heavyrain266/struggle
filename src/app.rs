@@ -22,16 +22,17 @@ pub struct Struggle {
 
 impl ApplicationHandler for Struggle {
 	fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-		let attributes: WindowAttributes = WindowAttributes::default()
-			.with_active(true)
-			.with_resizable(true)
-			.with_window_icon(None)
-			.with_taskbar_icon(None)
-			.with_class_name("hello")
-			.with_title("Hello, Direct3D 11!");
-
 		let window: Window = event_loop
-			.create_window(attributes)
+			.create_window(
+				WindowAttributes::default()
+					.with_active(true)
+					.with_visible(false)
+					.with_resizable(true)
+					.with_window_icon(None)
+					.with_taskbar_icon(None)
+					.with_class_name("hello")
+					.with_title("Hello, Direct3D 11!"),
+			)
 			.expect("failed to create a window");
 
 		let Some(monitor) = window.current_monitor() else {
@@ -93,7 +94,9 @@ impl ApplicationHandler for Struggle {
 				let size: LogicalSize<f32> = phys.to_logical::<f32>(window.scale_factor());
 				let scissor: LogicalSize<i32> = phys.to_logical::<i32>(window.scale_factor());
 
-				if size.width != 0.0 && size.height != 0.0 {
+				if !window.is_visible().unwrap() {
+					window.set_visible(true);
+				} else {
 					unsafe {
 						context
 							.resize_buffers(size.width, size.height, scissor)
